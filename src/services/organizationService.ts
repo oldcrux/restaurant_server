@@ -1,0 +1,164 @@
+import { FastifyInstance } from 'fastify';
+import bcrypt from 'bcryptjs';
+import { eq, and, count, desc } from 'drizzle-orm';
+import { organizations, users } from '../db/schema.js';
+import { createId } from '@paralleldrive/cuid2';
+
+export const OrganizationService = (fastify: FastifyInstance) => {
+    const db = fastify.db;
+
+    return {
+        async createOrganization(organizationData: any) {
+            const updatedOrganizationData = 
+            { 
+                ...organizationData, 
+                isActive: false, 
+                id: createId(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+
+            const result = await db.transaction(async (tx) => {
+                const [organization] = await tx.insert(organizations)
+                    .values(updatedOrganizationData)
+                    .returning();
+
+                // await tx.insert(stores).values({
+                //     id: createId(),
+                //     orgName: updatedOrganizationData.orgName,
+                //     storeName: '00',
+                //     isActive: false,
+                //     phoneNumber: updatedOrganizationData.phoneNumber,
+                //     address1: updatedOrganizationData.address1,
+                //     address2: updatedOrganizationData.address2,
+                //     city: updatedOrganizationData.city,
+                //     state: updatedOrganizationData.state,
+                //     zip: updatedOrganizationData.zip,
+                //     country: updatedOrganizationData.country,
+                //     createdBy: updatedOrganizationData.createdBy,
+                //     updatedBy: updatedOrganizationData.updatedBy,
+                //     createdAt: new Date().toISOString(),
+                //     updatedAt: new Date().toISOString(),
+                // });
+
+                await tx.insert(users).values({
+                    id: createId(),
+                    userId: updatedOrganizationData.emailId,
+                    // orgName: updatedOrganizationData.orgName,
+                    // storeName: '00',
+                    // role: 'ADMIN',
+                    firstName: updatedOrganizationData.orgName,
+                    lastName: updatedOrganizationData.orgName,
+                    isActive: false,
+                    emailId: updatedOrganizationData.emailId,
+                    phoneNumber: updatedOrganizationData.phoneNumber,
+                    password: await bcrypt.hash('12345', 10),
+                    address1: updatedOrganizationData.address1,
+                    address2: updatedOrganizationData.address2 || null,
+                    city: updatedOrganizationData.city || null,
+                    state: updatedOrganizationData.state || null,
+                    zip: updatedOrganizationData.zip || null,
+                    country: updatedOrganizationData.country || null,
+                    authType: 'DB',
+                    createdBy: updatedOrganizationData.createdBy,
+                    updatedBy: updatedOrganizationData.updatedBy,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+
+                return organization;
+            });
+
+            return result;
+        },
+
+        async activateOrganization(orgName: string, updatedBy: string) {
+            const organization = await db.select({ emailId: organizations.emailId })
+                .from(organizations)
+                .where(eq(organizations.orgName, orgName))
+                .limit(1);
+
+            if (organization.length === 0) throw new Error('Organization not found');
+
+            await db.transaction(async (tx) => {
+                await tx.update(organizations).set({ isActive: true, updatedBy: updatedBy }).where(eq(organizations.orgName, orgName));
+                // await tx.update(stores).set({ isActive: true, updatedBy: updatedBy })
+                //     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, '00')));
+                // await tx.update(users).set({ isActive: true, updatedBy: updatedBy })
+                //     .where(and(eq(users.orgName, orgName), eq(users.storeName, '00'), eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
+            });
+        },
+
+        async deactivateOrganization(orgName: string, updatedBy: string) {
+            const organization = await db.select({ emailId: organizations.emailId })
+                .from(organizations)
+                .where(eq(organizations.orgName, orgName))
+                .limit(1);
+
+            if (organization.length === 0) throw new Error('Organization not found');
+
+            await db.transaction(async (tx) => {
+                await tx.update(organizations).set({ isActive: false, updatedBy: updatedBy }).where(eq(organizations.orgName, orgName));
+                // await tx.update(stores).set({ isActive: false, updatedBy: updatedBy })
+                //     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, '00')));
+                // await tx.update(users).set({ isActive: false, updatedBy: updatedBy })
+                //     .where(and(eq(users.orgName, orgName), eq(users.storeName, '00'), eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
+            });
+        },
+
+        async getAllOrganizations(page = 1, limit = 10, status: boolean | null = null) {
+            const skip = (page - 1) * limit;
+            const whereConditions = status !== null ? [eq(organizations.isActive, status)] : [];
+            const whereClause = whereConditions.length ? and(...whereConditions) : undefined;
+
+            const organizationsList = await db.select()
+                .from(organizations)
+                .where(whereClause)
+                .orderBy(desc(organizations.createdAt))
+                .limit(limit)
+                .offset(skip);
+
+            const totalResult = await db.select({ count: count() })
+                .from(organizations)
+                .where(whereClause);
+
+            const total = totalResult[0]?.count ?? 0;
+
+            return {
+                organizations: organizationsList,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            };
+        },
+
+        async getOrganizationById(organizationId: string) {
+            const organization = await db.select()
+                .from(organizations)
+                .where(eq(organizations.orgName, organizationId))
+                .limit(1);
+
+            if (organization.length === 0) throw new Error('Organization not found');
+            return organization[0];
+        },
+
+        async updateOrganization(updateData: any) {
+            const [organization] = await db.update(organizations)
+                .set({ ...updateData, updatedAt: new Date() })
+                .where(eq(organizations.orgName, updateData.orgName))
+                .returning();
+
+            if (!organization) throw new Error('Organization not found');
+            return organization;
+        },
+
+        // async deleteOrganization(organizationId: string, updatedBy: string) {
+        //     await db.transaction(async (tx) => {
+        //         throw new Error('Delete organization not yet implemented');
+        //     });
+        // }
+    };
+};

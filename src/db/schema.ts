@@ -1,0 +1,199 @@
+import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, serial, uniqueIndex, boolean, varchar, pgEnum, jsonb } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+
+export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
+
+
+export const orderDetails = pgTable("order_details", {
+	orderNumber: integer("order_number").notNull(),
+	item: text().notNull(),
+	itemPrice: doublePrecision("item_price").notNull(),
+	quantity: integer().notNull(),
+	specialInstructions: text("special_instructions"),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	orderDetailNumber: serial("order_detail_number").primaryKey().notNull(),
+}, (table) => [
+	foreignKey({
+		columns: [table.orderNumber],
+		foreignColumns: [orders.orderNumber],
+		name: "order_details_order_number_fkey"
+	}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const orders = pgTable("orders", {
+	customerName: text("customer_name").notNull(),
+	customerPhoneNumber: text("customer_phone_number").notNull(),
+	totalCost: doublePrecision("total_cost").notNull(),
+	status: orderStatus().default('CREATED').notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name").notNull(),
+	orderNumber: serial("order_number").primaryKey().notNull(),
+});
+
+export const organizations = pgTable("organizations", {
+	id: text().primaryKey().notNull(),
+	orgName: text("org_name").notNull(),
+	isActive: boolean("is_active").default(false).notNull(),
+	isDeleted: boolean("is_deleted").default(false).notNull(),
+	phoneNumber: text("phone_number").notNull(),
+	emailId: text("email_id").notNull(),
+	address1: text("address_1").notNull(),
+	address2: text("address_2"),
+	city: text().notNull(),
+	state: text().notNull(),
+	zip: text().notNull(),
+	country: text().notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("organizations_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("organizations_org_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops")),
+]);
+
+
+// ALTER TABLE stores
+// ALTER COLUMN store_hour
+// SET DATA TYPE jsonb
+// USING store_hour::jsonb;
+
+export const stores = pgTable("stores", {
+	id: text().primaryKey().notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name").notNull(),
+	storeHour: jsonb("store_hour"),
+	dineInCapacity: integer('dinein_capacity'),
+	slotDurationMinutes: integer('slot_duration_minutes'),
+	isActive: boolean("is_active").default(true).notNull(),
+	isDeleted: boolean("is_deleted").default(false).notNull(),
+	phoneNumber: text("phone_number").notNull(),
+	trunkPhoneNumber: text("trunk_phone_number"),
+	address1: text("address_1").notNull(),
+	address2: text("address_2"),
+	city: text().notNull(),
+	state: text().notNull(),
+	zip: text().notNull(),
+	country: text().notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("stores_org_name_store_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")),
+]);
+
+export const users = pgTable("users", {
+	id: text().primaryKey().notNull(),
+	emailId: text("email_id").notNull(),
+	userId: text("user_id").notNull(),
+	firstName: text("first_name").notNull(),
+	lastName: text("last_name").notNull(),
+	phoneNumber: text("phone_number"),
+	// role: text().notNull(),
+	isActive: boolean("is_active").default(true).notNull(),
+	isDeleted: boolean("is_deleted").default(false).notNull(),
+	address1: text("address_1").notNull(),
+	address2: text("address_2"),
+	city: text().notNull(),
+	state: text().notNull(),
+	zip: text().notNull(),
+	country: text().notNull(),
+	authType: text("auth_type").notNull(),
+	password: text(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	// orgName: text("org_name").notNull(),
+	// storeName: text("store_name").notNull(),
+}, (table) => [
+	uniqueIndex("users_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("users_user_id_org_name_store_name_key").using("btree", table.userId.asc().nullsLast().op("text_ops"), 
+	// table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")
+	),
+]);
+
+export const menuItems = pgTable("menu_items", {
+	id: text().primaryKey().notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name").notNull(),
+	itemName: text("item_name").notNull(),
+	itemDescription: text("item_description").notNull(),
+	itemPrice: doublePrecision("item_price").notNull(),
+	itemComposition: text("item_composition").notNull(),
+	customizable: boolean("customizable").default(false).notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const bookings = pgTable('bookings', {
+	id: text().primaryKey().notNull(),
+	customerName: text('customer_name').notNull(),
+	customerPhoneNumber: text('customer_phone_number').notNull(),
+	guests: integer('guests').notNull(),
+	startTime: timestamp('start_time', { precision: 3, mode: 'string' }).notNull(),
+	endTime: timestamp('end_time', { precision: 3, mode: 'string' }).notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const permissions = pgTable('permissions', {
+	permissionId: text("permission_id").primaryKey().notNull(),
+	permissionName: text("permission_name").notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const roles = pgTable('roles', {
+	roleId: text("role_id").primaryKey().notNull(),
+	roleName: text("role_name").notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const rolePermissions = pgTable('role_permissions', {
+	roleId: text("role_id").notNull(),
+	permissionId: text("permission_id").notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const userRoles = pgTable('user_roles', {
+	userId: text("user_id").notNull(),
+	roleId: text("role_id").notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name"),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
+
+export const prismaMigrations = pgTable("_prisma_migrations", {
+	id: varchar({ length: 36 }).primaryKey().notNull(),
+	checksum: varchar({ length: 64 }).notNull(),
+	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
+	migrationName: varchar("migration_name", { length: 255 }).notNull(),
+	logs: text(),
+	rolledBackAt: timestamp("rolled_back_at", { withTimezone: true, mode: 'string' }),
+	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	appliedStepsCount: integer("applied_steps_count").default(0).notNull(),
+});

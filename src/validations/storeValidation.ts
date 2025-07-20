@@ -1,0 +1,55 @@
+import { z } from 'zod';
+
+const timeWithAbbreviationRegex = /^([01]\d|2[0-3]):[0-5]\d\s[A-Z]{2,5}$/;
+const timeRangeWithAbbrSchema = z
+  .tuple([
+    z.string().regex(timeWithAbbreviationRegex, 'Time must be in HH:MM TZ format (e.g., 09:00 EST)'),
+    z.string().regex(timeWithAbbreviationRegex, 'Time must be in HH:MM TZ format (e.g., 19:00 EST)'),
+  ])
+  .or(z.null());
+
+// Store schemas
+export const createStoreSchema = z.object({
+  storeName: z.string().min(2, 'Store number is required'),
+  orgName: z.string().min(2, 'Organization name is required'),
+  storeHour: z
+    .record(
+      z.enum([
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+        'sunday',
+      ]),
+      timeRangeWithAbbrSchema
+    )
+    .optional(),
+  phoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),
+  address1: z.string().min(5, 'Address line 1 is required'),
+  address2: z.string().optional(),
+  city: z.string().min(2, 'City must be at least 2 characters long'),
+  state: z.string().min(2, 'State must be at least 2 characters long'),
+  zip: z.string().min(5, 'Zip code must be at least 5 characters long'),
+  country: z.string().min(1, 'Country is required'),
+});
+
+export const updateStoreSchema = createStoreSchema.partial();
+
+export const storeOrgNameSchema = z.object({
+  storeName: z.string().min(2, 'Store name is required'),
+  orgName: z.string().min(2, 'Organization name is required'),
+});
+
+export const storeNameSchema = z.object({
+  storeName: z.string().min(2, 'Store name is required'),
+});
+
+export const storePhoneNumberSchema = z.object({
+  phoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),
+});
+
+export const trunkPhoneNumberSchema = z.object({
+  trunkPhoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),
+});
