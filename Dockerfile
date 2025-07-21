@@ -20,7 +20,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Create non-root user
-RUN useradd --user-group --create-home --shell /bin/false appuser
+RUN adduser -D -H -s /sbin/nologin appuser
 USER appuser
 
 # Expose port expected by Cloud Run
