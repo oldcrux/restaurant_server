@@ -1,18 +1,22 @@
 import { FastifyInstance } from 'fastify';
-import bcrypt from 'bcryptjs';
 import { eq, and, count, desc } from 'drizzle-orm';
-import { organizations, users } from '../db/schema.js';
+import { organizations } from '../db/schema.js';
 import { createId } from '@paralleldrive/cuid2';
+import { UserService } from './userService.js';
+import { InferInsertModel } from 'drizzle-orm';
+import { users as usersTable } from '../db/schema.js'; // For type
+
+type NewUser = InferInsertModel<typeof usersTable>;
 
 export const OrganizationService = (fastify: FastifyInstance) => {
     const db = fastify.db;
+    const userService = UserService(fastify);
 
     return {
         async createOrganization(organizationData: any) {
-            const updatedOrganizationData = 
-            { 
-                ...organizationData, 
-                isActive: false, 
+            const updatedOrganizationData = {
+                ...organizationData,
+                isActive: false,
                 id: createId(),
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -23,48 +27,27 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                     .values(updatedOrganizationData)
                     .returning();
 
-                // await tx.insert(stores).values({
-                //     id: createId(),
-                //     orgName: updatedOrganizationData.orgName,
-                //     storeName: '00',
-                //     isActive: false,
-                //     phoneNumber: updatedOrganizationData.phoneNumber,
-                //     address1: updatedOrganizationData.address1,
-                //     address2: updatedOrganizationData.address2,
-                //     city: updatedOrganizationData.city,
-                //     state: updatedOrganizationData.state,
-                //     zip: updatedOrganizationData.zip,
-                //     country: updatedOrganizationData.country,
-                //     createdBy: updatedOrganizationData.createdBy,
-                //     updatedBy: updatedOrganizationData.updatedBy,
-                //     createdAt: new Date().toISOString(),
-                //     updatedAt: new Date().toISOString(),
-                // });
-
-                await tx.insert(users).values({
-                    id: createId(),
+                const userData: Partial<NewUser> = {
                     userId: updatedOrganizationData.emailId,
-                    // orgName: updatedOrganizationData.orgName,
-                    // storeName: '00',
-                    // role: 'ADMIN',
+                    emailId: updatedOrganizationData.emailId,
                     firstName: updatedOrganizationData.orgName,
                     lastName: updatedOrganizationData.orgName,
-                    isActive: false,
-                    emailId: updatedOrganizationData.emailId,
                     phoneNumber: updatedOrganizationData.phoneNumber,
-                    password: await bcrypt.hash('12345', 10),
                     address1: updatedOrganizationData.address1,
                     address2: updatedOrganizationData.address2 || null,
                     city: updatedOrganizationData.city || null,
                     state: updatedOrganizationData.state || null,
                     zip: updatedOrganizationData.zip || null,
                     country: updatedOrganizationData.country || null,
-                    authType: 'DB',
-                    createdBy: updatedOrganizationData.createdBy,
-                    updatedBy: updatedOrganizationData.updatedBy,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                });
+                };
+
+                // Use userService.createUser and pass the transaction object
+                await userService.createUser(
+                    userData,
+                    updatedOrganizationData.orgName,
+                    updatedOrganizationData.storeName || '',
+                    tx
+                );
 
                 return organization;
             });
