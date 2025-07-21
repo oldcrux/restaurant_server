@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 // Organization schemas
 export const createOrganizationSchema = z.object({
+  firstName: z.string().min(2, 'First name must be at least 2 characters long'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters long'),
   orgName: z.string().min(2, 'Organization name is required'),
   emailId: z.string().email('Invalid email_id'),
   phoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),

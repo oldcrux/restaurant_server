@@ -30,8 +30,8 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                 const userData: Partial<NewUser> = {
                     userId: updatedOrganizationData.emailId,
                     emailId: updatedOrganizationData.emailId,
-                    firstName: updatedOrganizationData.orgName,
-                    lastName: updatedOrganizationData.orgName,
+                    firstName: updatedOrganizationData.firstName,
+                    lastName: updatedOrganizationData.lastName,
                     phoneNumber: updatedOrganizationData.phoneNumber,
                     address1: updatedOrganizationData.address1,
                     address2: updatedOrganizationData.address2 || null,
