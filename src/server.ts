@@ -3,15 +3,18 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import fastifyFormBody from '@fastify/formbody';  // Fastify plugin for parsing form data
-import fastifyWs from '@fastify/websocket'; 
+import fastifyWs from '@fastify/websocket';
+import { join } from 'path';
+import pino from 'pino';
+
 // import fastifySwagger from '@fastify/swagger';
 // import fastifySwaggerUi from '@fastify/swagger-ui';
 import { config } from './config.js';
 import { healthRoutes } from './routes/health.js';
 // import { twillioRoutes } from './voice/routes/twillioRoutes';
-import {organizationRoutes} from './routes/organizationRoutes.js';
-import {storeRoutes} from './routes/storeRoutes.js';
-import {userRoutes} from './routes/userRoutes.js';
+import { organizationRoutes } from './routes/organizationRoutes.js';
+import { storeRoutes } from './routes/storeRoutes.js';
+import { userRoutes } from './routes/userRoutes.js';
 import { menuItemRoutes } from './routes/menuItemRoutes.js';
 import { orderRoutes } from './routes/orderRoutes.js';
 import dbPlugin from './db/database.js';
@@ -20,13 +23,14 @@ import dbPlugin from './db/database.js';
 export async function createServer() {
   const server = Fastify({
     logger: {
+      name: 'restaurant_server',
       level: config.logLevel,
       transport: { // TODO add transport for production
             target: 'pino-pretty',
             options: {
               colorize: true,
               translateTime: 'HH:MM:ss Z',
-              ignore: 'pid,hostname',
+              ignore: 'hostname',
             },
           },
     },
@@ -48,12 +52,12 @@ export async function createServer() {
     contentSecurityPolicy: config.isDevelopment ? false : true, // TODO review this
   });
 
-  await server.register(cors, {
+  await server.register(cors, { // TODO understand cors
     origin: config.isDevelopment ? true : config.corsOrigins,
     credentials: true,
   });
 
-  await server.register(rateLimit, {
+  await server.register(rateLimit, { // TODO understand rate limit
     max: 100,
     timeWindow: '1 minute',
   });
@@ -64,7 +68,7 @@ export async function createServer() {
     void request; // pretending to use request.  Will be removed is actually used
     const statusCode = error.statusCode || 500;
     const message = statusCode === 500 ? 'Internal Server Error' : error.message;
-    
+
     await reply.status(statusCode).send({
       error: true,
       message,
@@ -86,11 +90,11 @@ export async function createServer() {
   // await server.register(userRoutes, { prefix: '/api/v1' });
   // await server.register(twillioRoutes);
 
-  await server.register(organizationRoutes, {prefix: 'api/organization'});
-  await server.register(storeRoutes, {prefix: 'api/store'});
-  await server.register(userRoutes, {prefix: 'api/user'});
-  await server.register(menuItemRoutes, {prefix: 'api/menu-items'});
-  await server.register(orderRoutes, {prefix: 'api/order'});
+  await server.register(organizationRoutes, { prefix: 'api/organization' });
+  await server.register(storeRoutes, { prefix: 'api/store' });
+  await server.register(userRoutes, { prefix: 'api/user' });
+  await server.register(menuItemRoutes, { prefix: 'api/menu-items' });
+  await server.register(orderRoutes, { prefix: 'api/order' });
 
   return server;
 }

@@ -15,13 +15,14 @@ export async function storeRoutes(fastify: FastifyInstance) {
         properties: {
           page: { type: 'integer', default: 1 },
           limit: { type: 'integer', default: 10 },
-          status: { type: 'string' }
+          status: { type: 'string' },
+          orgName: { type: 'string' },
         }
       }
     }
   }, async (request, reply) => {
-    const { page = 1, limit = 10, status } = request.query as { page?: number; limit?: number; status?: boolean };
-    const result = await storeService.getAllStores(page, limit, status);
+    const { page = 1, limit = 10, status, orgName } = request.query as { page?: number; limit?: number; status?: boolean, orgName: string };
+    const result = await storeService.getAllStores(page, limit, orgName, status);
     reply.code(201).send({ success: true, data: result });
   });
 

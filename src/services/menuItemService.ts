@@ -125,19 +125,27 @@ export const MenuItemService = (fastify: FastifyInstance) => {
             }
         },
 
-
-        async deleteMenuItem(id: string) {
+        async deleteMenuItem(menuItemName: string, orgName: string, storeName: string) {
             try {
+                const whereConditions = [];
+
+                whereConditions.push(eq(menuItems.itemName, menuItemName));
+                whereConditions.push(eq(menuItems.orgName, orgName));
+                if (storeName) {
+                    whereConditions.push(eq(menuItems.storeName, storeName));
+                }
+                const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
                 const [deletedItem] = await db
                     .delete(menuItems)
-                    .where(eq(menuItems.id, id))
+                    .where(whereClause)
                     .returning();
 
                 if (!deletedItem) {
                     throw new Error('Menu item not found or already deleted');
                 }
 
-                return { message: `Menu item ${id} deleted successfully` };
+                return { message: `Menu item ${menuItemName} deleted successfully` };
             } catch (error: any) {
                 throw new Error(`Failed to delete menu item: ${error.message}`);
             }

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { eq, and, count, desc } from 'drizzle-orm';
-import { organizations } from '../db/schema.js';
+import { organizations, users } from '../db/schema.js';
 import { createId } from '@paralleldrive/cuid2';
 import { UserService } from './userService.js';
 import { InferInsertModel } from 'drizzle-orm';
@@ -67,9 +67,12 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                 await tx.update(organizations).set({ isActive: true, updatedBy: updatedBy }).where(eq(organizations.orgName, orgName));
                 // await tx.update(stores).set({ isActive: true, updatedBy: updatedBy })
                 //     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, '00')));
-                // await tx.update(users).set({ isActive: true, updatedBy: updatedBy })
-                //     .where(and(eq(users.orgName, orgName), eq(users.storeName, '00'), eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
+                await tx.update(users).set({ isActive: true, updatedBy: updatedBy })
+                    .where(and(eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
             });
+
+            // TODO: trigger email notification to the organization admin with the login credentials/ password reset link
+            return organization;
         },
 
         async deactivateOrganization(orgName: string, updatedBy: string) {

@@ -52,21 +52,25 @@ export const validateBody = (schema: any) => {
     try {
       const validatedData = schema.parse(request.body);
       request.body = validatedData;
-    } catch (error) {
+    } catch (error: any) {
+      const details =
+        error.errors?.map((err: { path: any[]; message: any }) => ({
+          field: err.path.join('.'),
+          message: err.message,
+        })) || [{ message: error.message }];
+
+      const primaryMessage =
+        details.length > 0 ? details[0].message : 'Validation error';
+
       return reply.code(400).send({
         success: false,
-        message: 'Validation error',
-        if(error: any){
-          details: error.errors?.map((err: { path: any[]; message: any; }) => ({
-            field: err.path.join('.'),
-            message: err.message
-          })) || [{ message: error.message }]
-        }
-        }
-        );
+        message: `Validation failed: ${primaryMessage}`,
+        details,
+      });
     }
   };
 };
+
 
 // Validate params middleware factory
 export const validateParams = (schema: any) => {

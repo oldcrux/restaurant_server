@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const idSchema = z.object({
-    id: z.string()
+    menuItemName: z.string()
 });
 
 export const createMenuItemSchema = z.object({
@@ -10,7 +10,8 @@ export const createMenuItemSchema = z.object({
     itemName: z.string(),
     itemDescription: z.string(),
     itemPrice: z.number().positive(),
-    itemComposition: z.string()
+    itemComposition: z.string(),
+    customizable: z.boolean().optional()
 });
 
 export const updateMenuItemSchema = z.object({
@@ -20,5 +21,6 @@ export const updateMenuItemSchema = z.object({
     itemName: z.string().optional(),
     itemDescription: z.string().optional(),
     itemPrice: z.number().positive().optional(),
-    itemComposition: z.string().optional()
+    itemComposition: z.string().optional(),
+    customizable: z.boolean().optional()
 });

@@ -1,29 +1,30 @@
 import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, serial, uniqueIndex, boolean, varchar, pgEnum, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
+export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'READY', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
 
 
 export const orderDetails = pgTable("order_details", {
-	orderNumber: integer("order_number").notNull(),
+	id: text().primaryKey().notNull(),
+	orderId: text("order_id").notNull(),
 	item: text().notNull(),
 	itemPrice: doublePrecision("item_price").notNull(),
 	quantity: integer().notNull(),
-	specialInstructions: text("special_instructions"),
+	notes: text("notes"),
 	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	orderDetailNumber: serial("order_detail_number").primaryKey().notNull(),
 }, (table) => [
 	foreignKey({
-		columns: [table.orderNumber],
-		foreignColumns: [orders.orderNumber],
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
 		name: "order_details_order_number_fkey"
 	}).onUpdate("cascade").onDelete("cascade"),
 ]);
 
 export const orders = pgTable("orders", {
+	id: text().primaryKey().notNull(),
 	customerName: text("customer_name").notNull(),
 	customerPhoneNumber: text("customer_phone_number").notNull(),
 	totalCost: doublePrecision("total_cost").notNull(),
@@ -34,12 +35,21 @@ export const orders = pgTable("orders", {
 	updatedBy: text("updated_by").notNull(),
 	orgName: text("org_name").notNull(),
 	storeName: text("store_name").notNull(),
-	orderNumber: serial("order_number").primaryKey().notNull(),
+	orderNumber: integer("order_number").notNull(),
+	notes: text("notes"),
+});
+
+export const orderCounters = pgTable("order_counters", {
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name").notNull(),
+	orderNumber: integer("order_number").notNull(),
+	orderDate: timestamp("order_date", { precision: 3, mode: 'string' }).notNull(),
 });
 
 export const organizations = pgTable("organizations", {
 	id: text().primaryKey().notNull(),
 	orgName: text("org_name").notNull(),
+	timezone: text("timezone").notNull().default('UTC'),
 	isActive: boolean("is_active").default(false).notNull(),
 	isDeleted: boolean("is_deleted").default(false).notNull(),
 	phoneNumber: text("phone_number").notNull(),
@@ -69,6 +79,7 @@ export const stores = pgTable("stores", {
 	id: text().primaryKey().notNull(),
 	orgName: text("org_name").notNull(),
 	storeName: text("store_name").notNull(),
+	timezone: text("timezone").notNull().default('UTC'),
 	storeHour: jsonb("store_hour"),
 	dineInCapacity: integer('dinein_capacity'),
 	slotDurationMinutes: integer('slot_duration_minutes'),

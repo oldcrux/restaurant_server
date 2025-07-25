@@ -31,6 +31,31 @@ export async function healthRoutes(
     };
   });
 
+  server.get('/', {
+    schema: {
+      description: 'Health check endpoint',
+      tags: ['health'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            timestamp: { type: 'string' },
+            uptime: { type: 'number' },
+            environment: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async () => {
+    return {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+    };
+  });
+
   // Readiness check endpoint
   server.get('/ready', {
     schema: {

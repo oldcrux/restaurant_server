@@ -14,14 +14,15 @@ export const StoreService = (fastify: FastifyInstance) => {
         // Create a new store
         async createStore(storeData: Partial<NewStore>): Promise<Store> {
             const now = new Date();
-
-            // TODO : phone number should be validated before creating a store.  Phone number is unique across all stores.
+            // TODO : orgName should be validated before creating a store.
+            // TODO : phone number, trunk phone number should be validated before creating a store.  Phone number is unique across all stores.
+            // TODO : orgName + storeName should be unique
             const newStore: NewStore = {
                 ...storeData,
                 id: createId(),
                 createdAt: now.toISOString(),
                 updatedAt: now.toISOString(),
-                isActive: false,
+                isActive: storeData.isActive !== undefined ? storeData.isActive : false,
                 isDeleted: false,
             } as NewStore;
 
@@ -69,6 +70,7 @@ export const StoreService = (fastify: FastifyInstance) => {
         async getAllStores(
             page: number = 1,
             limit: number = 10,
+            orgName: string,
             status: boolean | null = null
         ): Promise<{
             stores: Store[];
@@ -78,6 +80,7 @@ export const StoreService = (fastify: FastifyInstance) => {
                 const skip = (page - 1) * limit;
 
                 const whereConditions = status !== null ? [eq(stores.isActive, status)] : [];
+                whereConditions.push(eq(stores.orgName, orgName));
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
                 const [storesList, totalResult] = await Promise.all([

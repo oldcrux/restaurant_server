@@ -36,7 +36,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   // GET /api/order/:id
   fastify.get('/:id', { preHandler: validateParams(idSchema) }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const order = await orderService.getOrderById(Number(id));
+    const order = await orderService.getOrderById(id);
     reply.code(201).send({ success: true, data: order });
   });
 
@@ -81,8 +81,9 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
   // POST /api/order/update/status
   fastify.post('/update/status', { preHandler: validateBody(upadateStatusSchema) }, async (request, reply) => {
-    const { orderNumber, status, updatedBy } = request.body as any;
-    const order = await orderService.updateOrderStatus(orderNumber, status, updatedBy);
+    console.log('Updating order status with body:', request.body);
+    const { id, status, updatedBy } = request.body as any;
+    const order = await orderService.updateOrderStatus(id, status, updatedBy);
     reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
   });
 
@@ -101,7 +102,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   // DELETE /api/order/:id
   fastify.delete('/:id', { preHandler: validateParams(idSchema) }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const result = await orderService.deleteOrder(Number(id));
+    const result = await orderService.deleteOrder(id);
     reply.code(201).send({ success: true, message: 'Order deleted successfully', data: result });
   });
 

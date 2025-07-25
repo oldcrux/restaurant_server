@@ -3,13 +3,24 @@ import { eq, and, count, desc, inArray, gte, lte } from 'drizzle-orm';
 import { orders, orderDetails } from '../db/schema.js';
 import { OrderStatusConstant } from '../validations/orderValidation.js';
 import { FastifyInstance } from 'fastify';
-// import { createId } from '@paralleldrive/cuid2';
+import { OrderCounterService } from './orderCounterService.js';
+import { createId } from '@paralleldrive/cuid2';
 
 export const OrderService = (fastify: FastifyInstance) => {
     const db = fastify.db;
+    const orderCounterService = OrderCounterService(fastify);
+    
     return {
         async createOrder(orderData: any) {
             console.log('Creating order with data:', orderData);
+
+            const storeTimezone = 'EST'; // TODO this will come from the user session along with org and store
+
+            const orderCounter = await orderCounterService.getOrderCounter(orderData.orgName, orderData.storeName, storeTimezone);
+            const orderCounterNumber = orderCounter?.orderNumber;
+
+            orderData.orderNumber = orderCounterNumber;
+
             try {
                 // Calculate total cost from order details
                 const totalCost = orderData.orderDetails.reduce(
@@ -23,7 +34,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         .insert(orders)
                         .values({
                             ...orderData,
-                            // orderNumber: createId(),
+                            id: createId(),
                             totalCost: totalCost,
                             status: OrderStatusConstant.CREATED, // Default status
                             createdBy: orderData.createdBy,
@@ -36,8 +47,8 @@ export const OrderService = (fastify: FastifyInstance) => {
                     // Create order details
                     const orderDetailsData = orderData.orderDetails.map((detail: any) => ({
                         ...detail,
-                        // orderDetailNumber: createId(),
-                        orderNumber: order?.orderNumber,
+                        id: createId(),
+                        orderId: order?.id,
                         createdBy: orderData.createdBy,
                         updatedBy: orderData.updatedBy,
                         createdAt: new Date().toISOString(),
@@ -93,7 +104,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         const details = await db
                             .select()
                             .from(orderDetails)
-                            .where(eq(orderDetails.orderNumber, order.orderNumber));
+                            .where(eq(orderDetails.orderId, order.id));
 
                         return {
                             ...order,
@@ -125,13 +136,14 @@ export const OrderService = (fastify: FastifyInstance) => {
         },
 
         async updateOrder(updateData: any) {
-            const orderNumber = updateData.orderNumber;
+            console.log('Updating order with data:', updateData);
+            const id = updateData.id;
             try {
                 // 1. Load existing order with details
                 const existingOrderResult = await db
                     .select()
                     .from(orders)
-                    .where(eq(orders.orderNumber, orderNumber))
+                    .where(eq(orders.id, id))
                     .limit(1);
 
                 if (existingOrderResult.length === 0) {
@@ -148,7 +160,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                 const existingDetails = await db
                     .select()
                     .from(orderDetails)
-                    .where(eq(orderDetails.orderNumber, orderNumber));
+                    .where(eq(orderDetails.orderId, id));
 
                 const incomingDetails = updateData.orderDetails || [];
 
@@ -160,7 +172,7 @@ export const OrderService = (fastify: FastifyInstance) => {
 
                 // 3. Calculate new total cost
                 const totalCost = incomingDetails.reduce(
-                    (sum: number, d: any) => sum + d.quantity * d.item_price,
+                    (sum: number, d: any) => sum + d.quantity * d.itemPrice,
                     0
                 );
 
@@ -176,10 +188,11 @@ export const OrderService = (fastify: FastifyInstance) => {
                                 .set({
                                     quantity: incoming.quantity,
                                     itemPrice: incoming.item_price,
+                                    notes: incoming.notes,
                                     updatedBy: updateData.updated_by,
                                     updatedAt: new Date().toISOString()
                                 })
-                                .where(eq(orderDetails.orderDetailNumber, match.orderDetailNumber));
+                                .where(eq(orderDetails.id, match.id));
 
                             existingMap.delete(incoming.item); // Mark as handled
                         } else {
@@ -187,10 +200,12 @@ export const OrderService = (fastify: FastifyInstance) => {
                             await tx
                                 .insert(orderDetails)
                                 .values({
-                                    orderNumber: orderNumber,
+                                    id: createId(),
+                                    orderId: id,
                                     item: incoming.item,
                                     quantity: incoming.quantity,
                                     itemPrice: incoming.item_price,
+                                    notes: incoming.notes,
                                     createdBy: updateData.updated_by,
                                     updatedBy: updateData.updated_by,
                                     updatedAt: new Date().toISOString(),
@@ -199,11 +214,11 @@ export const OrderService = (fastify: FastifyInstance) => {
                     }
 
                     // Delete remaining items in existingMap
-                    const remainingDetailIds = Array.from(existingMap.values()).map(detail => detail.orderDetailNumber);
+                    const remainingDetailIds = Array.from(existingMap.values()).map(detail => detail.id);
                     if (remainingDetailIds.length > 0) {
                         await tx
                             .delete(orderDetails)
-                            .where(inArray(orderDetails.orderDetailNumber, remainingDetailIds));
+                            .where(inArray(orderDetails.id, remainingDetailIds));
                     }
 
                     // Update the main order
@@ -218,7 +233,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                             updatedBy: updateData.updated_by,
                             updatedAt: new Date().toISOString()
                         })
-                        .where(eq(orders.orderNumber, orderNumber))
+                        .where(eq(orders.id, id))
                         .returning();
 
                     return updatedOrder;
@@ -230,12 +245,12 @@ export const OrderService = (fastify: FastifyInstance) => {
             }
         },
 
-        async updateOrderStatus(orderNumber: number, status: string, updated_by: string) {
+        async updateOrderStatus(id: string, status: string, updated_by: string) {
             // Check if order exists and get current status
             const existingOrderResult = await db
                 .select()
                 .from(orders)
-                .where(eq(orders.orderNumber, orderNumber))
+                .where(eq(orders.id, id))
                 .limit(1);
 
             if (existingOrderResult.length === 0) {
@@ -244,7 +259,7 @@ export const OrderService = (fastify: FastifyInstance) => {
 
             const existingOrder = existingOrderResult[0];
 
-            if (![OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED, OrderStatusConstant.PROCESSING, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(status as any)) {
+            if (![OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED, OrderStatusConstant.PROCESSING,  OrderStatusConstant.READY,OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(status as any)) {
                 throw new Error(`Invalid order status: ${status}`);
             }
             // Validate status transitions
@@ -253,7 +268,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                 throw new Error('Only orders in CREATED or CONFIRMED status can be cancelled');
             }
             else if ([OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED].includes(status as any)
-                && [OrderStatusConstant.PROCESSING, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(existingOrder?.status as any)) {
+                && [OrderStatusConstant.PROCESSING, OrderStatusConstant.READY, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(existingOrder?.status as any)) {
                 throw new Error(`Current order status is ${existingOrder?.status}, cannot update to ${status}`);
             }
 
@@ -267,14 +282,14 @@ export const OrderService = (fastify: FastifyInstance) => {
                             updatedBy: updated_by,
                             updatedAt: new Date().toISOString()
                         })
-                        .where(eq(orders.orderNumber, orderNumber))
+                        .where(eq(orders.id, id))
                         .returning();
 
                     // Get order details
                     const details = await tx
                         .select()
                         .from(orderDetails)
-                        .where(eq(orderDetails.orderNumber, orderNumber));
+                        .where(eq(orderDetails.orderId, id));
 
                     return {
                         ...updatedOrder,
@@ -288,12 +303,12 @@ export const OrderService = (fastify: FastifyInstance) => {
             }
         },
 
-        async getOrderById(id: number) {
+        async getOrderById(id: string) {
             try {
                 const orderResult = await db
                     .select()
                     .from(orders)
-                    .where(eq(orders.orderNumber, id))
+                    .where(eq(orders.id, id))
                     .limit(1);
 
                 if (orderResult.length === 0) {
@@ -306,7 +321,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                 const details = await db
                     .select()
                     .from(orderDetails)
-                    .where(eq(orderDetails.orderNumber, id));
+                    .where(eq(orderDetails.id, id));
 
                 return {
                     ...order,
@@ -317,18 +332,18 @@ export const OrderService = (fastify: FastifyInstance) => {
             }
         },
 
-        async deleteOrder(id: number) {
+        async deleteOrder(id: string) {
             try {
                 const result = await db.transaction(async (tx) => {
                     // First delete order details (due to foreign key constraint)
                     await tx
                         .delete(orderDetails)
-                        .where(eq(orderDetails.orderNumber, id));
+                        .where(eq(orderDetails.id, id));
 
                     // Then delete the order
                     const deletedOrder = await tx
                         .delete(orders)
-                        .where(eq(orders.orderNumber, id))
+                        .where(eq(orders.id, id))
                         .returning();
 
                     if (deletedOrder.length === 0) {
@@ -364,7 +379,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         const details = await db
                             .select()
                             .from(orderDetails)
-                            .where(eq(orderDetails.orderNumber, order.orderNumber));
+                            .where(eq(orderDetails.orderId, order.id));
 
                         return {
                             ...order,
@@ -400,7 +415,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         const details = await db
                             .select()
                             .from(orderDetails)
-                            .where(eq(orderDetails.orderNumber, order.orderNumber));
+                            .where(eq(orderDetails.orderId, order.id));
 
                         return {
                             ...order,
@@ -443,7 +458,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         const details = await db
                             .select()
                             .from(orderDetails)
-                            .where(eq(orderDetails.orderNumber, order.orderNumber));
+                            .where(eq(orderDetails.orderId, order.id));
 
                         return {
                             ...order,
