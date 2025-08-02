@@ -3,7 +3,7 @@ import { orders, orderDetails } from "./schema.js";
 
 export const orderDetailsRelations = relations(orderDetails, ({one}) => ({
 	order: one(orders, {
-		fields: [orderDetails.orderNumber],
+		fields: [orderDetails.orderId],
 		references: [orders.orderNumber]
 	}),
 }));

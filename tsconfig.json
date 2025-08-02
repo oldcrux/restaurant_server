@@ -22,7 +22,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "lib": ["ES2022"],
-    "sourceMap": true
+    "sourceMap": true,
+     "typeRoots": ["src/types", "node_modules/@types"],
   },
   "include": [
     "src/**/*"

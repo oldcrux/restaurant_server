@@ -19,7 +19,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
           status: { type: 'string' }
         }
       }
-    }
+    },
   }, async (request, reply) => {
     // const { page = 1, limit = 10, status } = request.query as { page?: number; limit?: number; status?: string };
     const { page = 1, limit = 10, orgName, storeName } = request.query as {

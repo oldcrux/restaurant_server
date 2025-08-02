@@ -29,18 +29,18 @@ export const OrderCounterService = (fastify: FastifyInstance) => {
             and(
               eq(orderCounters.orgName, orgName),
               eq(orderCounters.storeName, storeName),
-              eq(orderCounters.orderDate, orderDateUtc)
+              eq(orderCounters.orderDate, orderDateUtc?? '')
             )
           )
           .limit(1);
 
         if (existing.length === 0) {
-          const [newCounter] = await this.createOrderCounter(orgName, storeName, orderDateUtc);
+          const [newCounter] = await this.createOrderCounter(orgName, storeName, orderDateUtc?? '');
           // fastify.log.info({ newCounter }, 'New order counter created');
           return newCounter;
         } else {
           const current = existing[0];
-          const [updatedCounter] = await this.updateOrderCounter(orgName, storeName, orderDateUtc, current?.orderNumber as any);
+          const [updatedCounter] = await this.updateOrderCounter(orgName, storeName, orderDateUtc?? '', current?.orderNumber as any);
           // fastify.log.info({ updatedCounter }, 'Order counter updated');
           return updatedCounter;
         }

@@ -39,14 +39,18 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                     state: updatedOrganizationData.state || null,
                     zip: updatedOrganizationData.zip || null,
                     country: updatedOrganizationData.country || null,
+                    createdBy: updatedOrganizationData.createdBy,
+                    updatedBy: updatedOrganizationData.createdBy,
                 };
 
+                const role = 'role_admin';  // This is the default user creation. So assigning admin role
                 // Use userService.createUser and pass the transaction object
                 await userService.createUser(
                     userData,
                     updatedOrganizationData.orgName,
                     updatedOrganizationData.storeName || '',
-                    tx
+                    tx,
+                    role
                 );
 
                 return organization;

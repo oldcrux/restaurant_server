@@ -1,9 +1,9 @@
-import bcrypt from 'bcryptjs';
 import { FastifyInstance } from 'fastify';
-import { userRoles, users } from '../db/schema.js';
+import { rolePermissions, userRoles, users } from '../db/schema.js';
 import { eq, and, count, desc } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
+import { createUserInSuperTokens } from '../auth/supertokens/supertokensService.js';
 
 type User = InferSelectModel<typeof users>;
 type NewUser = InferInsertModel<typeof users>;
@@ -17,7 +17,8 @@ export const UserService = (fastify: FastifyInstance) => {
             userData: Partial<NewUser>,
             orgName: string,
             storeName: string,
-            tx?: any // Use the actual transaction type if available
+            tx?: any, // Use the actual transaction type if available
+            role?: string
         ): Promise<User> {
 
             if (
@@ -34,7 +35,7 @@ export const UserService = (fastify: FastifyInstance) => {
                 throw new Error("Missing required user fields");
             }
 
-            const hashedPassword = await bcrypt.hash('12345', 10);
+            // const hashedPassword = await bcrypt.hash('12345', 10);
             const isActive = userData.isActive ?? true;
             const authType = userData.authType ?? 'DB';
 
@@ -43,9 +44,9 @@ export const UserService = (fastify: FastifyInstance) => {
                 id: createId(),
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                createdBy: 'system',
-                updatedBy: 'system',
-                password: hashedPassword,
+                createdBy: userData.createdAt ? userData.createdBy : 'system',
+                updatedBy: userData.updatedAt ? userData.updatedBy : 'system',
+                // password: hashedPassword,
                 isActive,
                 authType,
             } as NewUser;
@@ -56,8 +57,9 @@ export const UserService = (fastify: FastifyInstance) => {
                 }).returning();
 
                 await trx.insert(userRoles).values({
+                    id: createId(),
                     userId: userData.userId!,
-                    roleId: "role_staff", // TODO change the default role
+                    roleId: role || "role_staff", // TODO change the default role
                     orgName: orgName,
                     storeName: storeName,
                     createdBy: 'system',
@@ -66,6 +68,9 @@ export const UserService = (fastify: FastifyInstance) => {
                     updatedAt: new Date().toISOString(),
                 });
 
+                // console.log(`User created:, ${user.emailId}, ${hashedPassword}`);
+                // TODO remove this api call to active org/user
+                await createUserInSuperTokens(user.emailId, fastify);
                 return user;
             };
 
@@ -146,22 +151,57 @@ export const UserService = (fastify: FastifyInstance) => {
         // Get user by ID
         async getUserById(
             userId: string,
-            orgName: string,
-            storeName: string
-        ): Promise<User> {
+            // orgName: string,
+            // storeName: string
+        ): Promise<any> {
             try {
-                const [user] = await db.select()
+                const results = await db.select()
                     .from(users)
                     .innerJoin(userRoles, eq(users.userId, userRoles.userId))
+                    .innerJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
                     .where(and(
                         eq(users.userId, userId),
-                        eq(userRoles.orgName, orgName),
-                        eq(userRoles.storeName, storeName)
+                        // eq(userRoles.orgName, orgName),
+                        // eq(userRoles.storeName, storeName)
                     ))
-                    .limit(1);
+                    .limit(100);
 
-                if (!user) throw new Error('User not found');
-                return user?.users;
+                if (!results || results.length === 0) {
+                    throw new Error('User not found');
+                }
+
+                console.log(`data loaded: `, results);
+                const userData: {
+                    user: typeof results[0]['users'] & { orgName?: string; storeName?: string };
+                    roles: string[];
+                    permissions: string[];
+                } = {
+                    user: results[0]?.users as any,
+                    roles: [],
+                    permissions: [],
+                };
+
+                for (const row of results) {
+
+                    const role = row.user_roles;
+                    const permission = row.role_permissions;
+
+                    userData.user.orgName = role.orgName;
+                    userData.user.storeName = role.storeName? role.storeName : '';
+
+                    // Add role if not already added
+                    if (!userData.roles.includes(role.roleId)) {
+                        userData.roles.push(role.roleId);
+                    }
+
+                    // Add permission if not already added
+                    if (!userData.permissions.includes(permission.permissionId)) {
+                        userData.permissions.push(permission.permissionId);
+                    }
+                }
+
+                console.log(`userData: `, userData);
+                return userData;
             } catch (error: any) {
                 throw new Error(`Failed to fetch user: ${error.message}`);
             }

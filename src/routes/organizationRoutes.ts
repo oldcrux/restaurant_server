@@ -2,6 +2,9 @@ import { FastifyInstance } from 'fastify';
 import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
 import { createOrganizationSchema, updateOrganizationSchema, orgNameSchema } from '../validations/organizationValidation.js';
 import { OrganizationService } from '../services/organizationService.js';
+import { verifySession } from "supertokens-node/recipe/session/framework/fastify";
+import { SessionRequest } from "supertokens-node/framework/fastify";
+
 
 export async function organizationRoutes(fastify: FastifyInstance) {
   const organizationService = OrganizationService(fastify); // Inject Fastify instance
@@ -18,8 +21,9 @@ export async function organizationRoutes(fastify: FastifyInstance) {
           status: { type: 'string' }
         }
       }
-    }
-  }, async (request, reply) => {
+    },
+    preHandler: [verifySession()]
+  }, async (request: SessionRequest, reply) => {
     const { page = 1, limit = 10, status } = request.query as any;
     const result = await organizationService.getAllOrganizations(+page, +limit, status);
     reply.code(201).send({ success: true, data: result });
@@ -33,9 +37,15 @@ export async function organizationRoutes(fastify: FastifyInstance) {
 
   fastify.post('/create', { preHandler: validateBody(createOrganizationSchema) }, async (request, reply) => {
     const body = request.body as any;
-    body.createdBy = "system"; // TODO: Replace with value from JWT
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
-    const organization = await organizationService.createOrganization(request.body);
+    
+    console.log('Request user in organizationRoutes.ts', (request as any).user);
+    const user = (request as any).user
+    if(user.isBot) {
+      body.createdBy = user.userId;
+      body.updatedBy = user.userId;
+    }
+    console.log('body in organizationRoutes.ts', body);
+    const organization = await organizationService.createOrganization(body);
     reply.code(201).send({ success: true, message: 'Organization created successfully', data: organization });
   });
 

@@ -4,21 +4,24 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import fastifyFormBody from '@fastify/formbody';  // Fastify plugin for parsing form data
 import fastifyWs from '@fastify/websocket';
-import { join } from 'path';
-import pino from 'pino';
 
 // import fastifySwagger from '@fastify/swagger';
 // import fastifySwaggerUi from '@fastify/swagger-ui';
 import { config } from './config.js';
 import { healthRoutes } from './routes/health.js';
-// import { twillioRoutes } from './voice/routes/twillioRoutes';
 import { organizationRoutes } from './routes/organizationRoutes.js';
 import { storeRoutes } from './routes/storeRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 import { menuItemRoutes } from './routes/menuItemRoutes.js';
 import { orderRoutes } from './routes/orderRoutes.js';
 import dbPlugin from './db/database.js';
+import supertokens from "supertokens-node";
+import mailerPlugin from './mailer/plugin/nodemailer.js';
 
+import { errorHandler } from "supertokens-node/framework/fastify";
+import { supertokensConfig } from './auth/supertokens/supertokensConfig.js';
+import { plugin } from "supertokens-node/framework/fastify";
+import { verifyBotOrUserSession } from './auth/plugin/auth.js';
 
 export async function createServer() {
   const server = Fastify({
@@ -26,13 +29,13 @@ export async function createServer() {
       name: 'restaurant_server',
       level: config.logLevel,
       transport: { // TODO add transport for production
-            target: 'pino-pretty',
-            options: {
-              colorize: true,
-              translateTime: 'HH:MM:ss Z',
-              ignore: 'hostname',
-            },
-          },
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss Z',
+          ignore: 'hostname',
+        },
+      },
     },
     disableRequestLogging: !config.isDevelopment,
   });
@@ -41,7 +44,6 @@ export async function createServer() {
   //   openapi: { info: { title: 'API Docs', version: '1.0.0' } }
   // });
   // await server.register(fastifySwaggerUi, { routePrefix: '/docs' });
-
 
   await server.register(dbPlugin);
   server.register(fastifyFormBody);  // Register the form-body parsing plugin
@@ -52,10 +54,16 @@ export async function createServer() {
     contentSecurityPolicy: config.isDevelopment ? false : true, // TODO review this
   });
 
+  await server.register(supertokensConfig);
+
   await server.register(cors, { // TODO understand cors
     origin: config.isDevelopment ? true : config.corsOrigins,
+    allowedHeaders: ["content-type", ...supertokens.getAllCORSHeaders()],
     credentials: true,
   });
+
+  await server.register(plugin);
+  await server.register(errorHandler);
 
   await server.register(rateLimit, { // TODO understand rate limit
     max: 100,
@@ -64,6 +72,7 @@ export async function createServer() {
 
   // Error handler
   server.setErrorHandler(async (error, request, reply) => {
+    errorHandler();
     server.log.error(error);
     void request; // pretending to use request.  Will be removed is actually used
     const statusCode = error.statusCode || 500;
@@ -85,10 +94,13 @@ export async function createServer() {
     });
   });
 
+  await server.register(mailerPlugin);
+  // await server.register(mailerService)
+
   // Register routes
   await server.register(healthRoutes);
-  // await server.register(userRoutes, { prefix: '/api/v1' });
-  // await server.register(twillioRoutes);
+
+  server.addHook('preHandler', verifyBotOrUserSession());
 
   await server.register(organizationRoutes, { prefix: 'api/organization' });
   await server.register(storeRoutes, { prefix: 'api/store' });

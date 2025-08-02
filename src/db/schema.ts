@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, serial, uniqueIndex, boolean, varchar, pgEnum, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, uniqueIndex, boolean, varchar, pgEnum, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'READY', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
@@ -188,6 +188,7 @@ export const rolePermissions = pgTable('role_permissions', {
 });
 
 export const userRoles = pgTable('user_roles', {
+	id: text().primaryKey().notNull(),
 	userId: text("user_id").notNull(),
 	roleId: text("role_id").notNull(),
 	orgName: text("org_name").notNull(),
