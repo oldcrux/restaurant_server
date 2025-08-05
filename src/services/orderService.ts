@@ -84,7 +84,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                 if (orgName) {
                     whereConditions.push(eq(orders.orgName, orgName));
                 }
-                if (storeName) {
+                if (storeName && storeName !== 'All') { // 'All' means no filter on storeName
                     whereConditions.push(eq(orders.storeName, storeName));
                 }
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;

@@ -11,7 +11,7 @@ import { smtpSettings } from "../../mailer/plugin/nodemailer.js";
 
 
 export const supertokensConfig = (fastify: FastifyInstance) => {
-     const userService = UserService(fastify);
+    const userService = UserService(fastify);
     supertokens.init({
         debug: false,
         framework: "fastify",
@@ -77,8 +77,26 @@ export const supertokensConfig = (fastify: FastifyInstance) => {
                                 });
                             }
                             return response;
-                        }
-                    })
+                        },
+                        // signIn: async (input) => {
+                        //     const response = await original.signIn(input);
+                        //     if (response.status === "OK") {
+                        //         const superTokensUserId = response.user.id;
+
+                        //         const user = await userService.getUserById(superTokensUserId);
+                        //         console.log(`user loaded: `, user);
+
+                        //         if (user && !user.isActive) {
+                        //             return {
+                        //                 status: "WRONG_CREDENTIALS_ERROR",
+                        //                 reason: "Your account is blocked. Contact support"
+                        //             };
+                        //         }
+
+                        //     }
+                        //     return response;
+                        // }
+                    }),
                 }
             }),
             Session.init({
@@ -90,9 +108,7 @@ export const supertokensConfig = (fastify: FastifyInstance) => {
                             // here we are only overriding the function that's responsible
                             // for creating a new session
                             createNewSession: async function (input) {
-                                
                                 const user = await userService.getUserById(input.userId);
-
                                 console.log(`updating access token payload ${JSON.stringify(input.userId)}`);
                                 input.accessTokenPayload = {
                                     ...input.accessTokenPayload,

@@ -22,6 +22,7 @@ import { errorHandler } from "supertokens-node/framework/fastify";
 import { supertokensConfig } from './auth/supertokens/supertokensConfig.js';
 import { plugin } from "supertokens-node/framework/fastify";
 import { verifyBotOrUserSession } from './auth/plugin/auth.js';
+import { roleRoutes } from './routes/roleRoutes.js';
 
 export async function createServer() {
   const server = Fastify({
@@ -105,6 +106,7 @@ export async function createServer() {
   await server.register(organizationRoutes, { prefix: 'api/organization' });
   await server.register(storeRoutes, { prefix: 'api/store' });
   await server.register(userRoutes, { prefix: 'api/user' });
+  await server.register(roleRoutes, { prefix: 'api/role' });
   await server.register(menuItemRoutes, { prefix: 'api/menu-items' });
   await server.register(orderRoutes, { prefix: 'api/order' });
 

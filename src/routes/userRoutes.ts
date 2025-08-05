@@ -25,7 +25,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const { page = 1, limit = 10, status, orgName, storeName } = request.query as { page?: number; limit?: number; status?: boolean, orgName: string, storeName: string };
     const result = await userService.getAllUsers(page, limit, status, orgName, storeName);
-    reply.code(201).send({ success: true, data: result });
+    reply.code(200).send({ success: true, data: result });
   });
 
   // GET /api/user/:userId - Get user by userId
@@ -33,15 +33,14 @@ export async function userRoutes(fastify: FastifyInstance) {
     const { userId } = request.params as { userId: string };
     // const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const user = await userService.getUserById(userId);
-    reply.code(201).send({ success: true, data: user });
+    reply.code(200).send({ success: true, data: user });
   });
 
   // POST /api/user/create - Create new user
   fastify.post('/create', { preHandler: [validateBody(createUserSchema)] }, async (request, reply) => {
     const body = request.body as any;
     const { orgName, storeName } = request.query as { orgName: string; storeName: string };
-    body.createdBy = "system"; // TODO: Replace with value from JWT
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
+    console.log('Creating user with body:', body, 'orgName:', orgName, 'storeName:', storeName);
     const user = await userService.createUser(body, orgName, storeName);
     reply.code(201).send({ success: true, message: 'User created successfully', data: user });
   });
@@ -50,21 +49,24 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.post('/activate', { preHandler: [validateQueryParams(userIdSchema)] }, async (request, reply) => {
     const { userId, orgName, storeName } = request.query as { userId: string; orgName: string; storeName: string };
     const user = await userService.activateUser(userId, orgName, storeName);
-    reply.code(201).send({ success: true, message: 'User activated successfully', data: user });
+    reply.code(200).send({ success: true, message: 'User activated successfully', data: user });
   });
 
   // POST /api/user/deactivate - Deactivate user
   fastify.post('/deactivate', { preHandler: [validateQueryParams(userIdSchema)] }, async (request, reply) => {
     const { userId, orgName, storeName } = request.query as { userId: string; orgName: string; storeName: string };
+    console.log('deactivating user', userId);
     const user = await userService.deactivateUser(userId, orgName, storeName);
-    reply.code(201).send({ success: true, message: 'User deactivated successfully', data: user });
+    reply.code(200).send({ success: true, message: 'User deactivated successfully', data: user });
   });
 
   // POST /api/user/update - Update user
   fastify.post('/update', { preHandler: [validateBody(updateUserSchema)] }, async (request, reply) => {
     const body = request.body as any;
-    const user = await userService.updateUser(body);
-    reply.code(201).send({ success: true, message: 'User updated successfully', data: user });
+    const { orgName, storeName } = request.query as { orgName: string; storeName: string };
+    // console.log('updating user', body);
+    const user = await userService.updateUser(body, orgName, storeName);
+    reply.code(200).send({ success: true, message: 'User updated successfully', data: user });
   });
 
   // POST /api/user/update/password - Update user password
@@ -72,7 +74,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     const body = request.body as any;
     const { userId, orgName, storeName, oldPassword, newPassword } = body;
     const user = await userService.updateUserPassword(userId, orgName, storeName, oldPassword, newPassword);
-    reply.code(201).send({ success: true, message: 'Password updated successfully', data: user });
+    reply.code(200).send({ success: true, message: 'Password updated successfully', data: user });
   });
 
   // DELETE /api/user/:userId - Delete user
@@ -80,6 +82,6 @@ export async function userRoutes(fastify: FastifyInstance) {
     const { userId } = request.params as { userId: string };
     const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const result = await userService.deleteUser(userId, orgName, storeName);
-    reply.code(201).send({ success: true, message: 'User deleted successfully', data: result });
+    reply.code(200).send({ success: true, message: 'User deleted successfully', data: result });
   });
 }

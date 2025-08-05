@@ -9,7 +9,7 @@ export function verifyBotOrUserSession() {
   console.log(`Verifying bot or user session in auth.ts`);
   return async (req: FastifyRequest, reply: FastifyReply) => {
     const authHeader = req.headers.authorization;
-    console.log(`Validating authHeader in auth.ts: ${authHeader}`);
+    // console.log(`Validating authHeader in auth.ts: ${authHeader}`);
     // Check for bot token
     if (authHeader?.startsWith('Bot ')) {
       const token = authHeader.replace('Bot ', '');
