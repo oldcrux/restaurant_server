@@ -1,0 +1,12 @@
+// // types/fastify.d.ts
+// import 'fastify';
+// import type { Transporter } from 'nodemailer';
+
+// declare module 'fastify' {
+//   interface FastifyInstance {
+//     mailer: Transporter;
+//     services: {
+//       sendTemporaryPass(email: string, tempPW: string): Promise<any>;
+//     };
+//   }
+// }

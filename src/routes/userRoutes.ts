@@ -1,3 +1,4 @@
+import { SessionRequest } from 'supertokens-node/framework/fastify';
 import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
 import { UserService } from '../services/userService.js';
 import { updateUserSchema, userIdSchema, updatePasswordSchema, createUserSchema } from '../validations/userValidation.js';
@@ -36,12 +37,20 @@ export async function userRoutes(fastify: FastifyInstance) {
     reply.code(200).send({ success: true, data: user });
   });
 
+  // GET /api/user/session/:userId - Get user by userId
+  fastify.get('/session/:userId', { preHandler: [validateParams(userIdSchema)] }, async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    // const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
+    const user = await userService.getUserByIdForSession(userId);
+    reply.code(200).send({ success: true, data: user });
+  });
+
   // POST /api/user/create - Create new user
   fastify.post('/create', { preHandler: [validateBody(createUserSchema)] }, async (request, reply) => {
     const body = request.body as any;
-    const { orgName, storeName } = request.query as { orgName: string; storeName: string };
-    console.log('Creating user with body:', body, 'orgName:', orgName, 'storeName:', storeName);
-    const user = await userService.createUser(body, orgName, storeName);
+    const { orgName } = request.query as { orgName: string; };
+    console.log('Creating user with body:', body, 'orgName:', orgName);
+    const user = await userService.createUser(body, orgName);
     reply.code(201).send({ success: true, message: 'User created successfully', data: user });
   });
 
@@ -63,9 +72,8 @@ export async function userRoutes(fastify: FastifyInstance) {
   // POST /api/user/update - Update user
   fastify.post('/update', { preHandler: [validateBody(updateUserSchema)] }, async (request, reply) => {
     const body = request.body as any;
-    const { orgName, storeName } = request.query as { orgName: string; storeName: string };
-    // console.log('updating user', body);
-    const user = await userService.updateUser(body, orgName, storeName);
+    const { orgName } = request.query as { orgName: string };
+    const user = await userService.updateUser(body, orgName);
     reply.code(200).send({ success: true, message: 'User updated successfully', data: user });
   });
 
@@ -83,5 +91,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const result = await userService.deleteUser(userId, orgName, storeName);
     reply.code(200).send({ success: true, message: 'User deleted successfully', data: result });
+  });
+
+  // Example of updating access token payload to update the current store of the user
+  fastify.post("/currentstore/update", async (req: SessionRequest, reply) => {
+    let session = req.session;
+    await session!.mergeIntoAccessTokenPayload({ newKey: "newValue" });
+    // res.json({ message: "successfully updated access token payload" });
+    reply.code(200).send({ success: true, message: 'Successfully updated user current store' });
   });
 }

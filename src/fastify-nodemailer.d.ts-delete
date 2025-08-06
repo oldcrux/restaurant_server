@@ -1,0 +1,8 @@
+// // src/types/fastify-nodemailer.d.ts
+// import type { Transporter } from 'nodemailer';
+
+// declare module 'fastify' {
+//   interface FastifyInstance {
+//     nodemailer: Transporter;
+//   }
+// }

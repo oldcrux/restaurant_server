@@ -28,6 +28,7 @@ export const orders = pgTable("orders", {
 	customerName: text("customer_name").notNull(),
 	customerPhoneNumber: text("customer_phone_number").notNull(),
 	totalCost: doublePrecision("total_cost").notNull(),
+	totalDiscount: doublePrecision("total_discount").default(0).notNull(),
 	status: orderStatus().default('CREATED').notNull(),
 	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
@@ -131,6 +132,18 @@ export const users = pgTable("users", {
 	// table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")
 	),
 ]);
+
+export const storeUsers = pgTable('store_users', {
+	id: text().primaryKey().notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name"),
+	userId: text("user_id").notNull(),
+	isCurrentStore: boolean("is_current_store").default(false).notNull(),
+	createdBy: text("created_by").notNull(),
+	updatedBy: text("updated_by").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+});
 
 export const menuItems = pgTable("menu_items", {
 	id: text().primaryKey().notNull(),

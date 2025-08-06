@@ -1,27 +1,70 @@
 import { FastifyInstance } from 'fastify';
-import { rolePermissions, userRoles, users } from '../db/schema.js';
-import { eq, and, count, desc, inArray } from 'drizzle-orm';
+import { organizations, rolePermissions, stores, storeUsers, userRoles, users } from '../db/schema.js';
+import { eq, and, count, desc, inArray, is } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { createUserInSuperTokens } from '../auth/supertokens/supertokensService.js';
 
+type storeRoles = {
+    storeName: string;
+    roleIds: string[];
+    isCurrentStore: boolean;
+};
 type User = InferSelectModel<typeof users>;
-type NewUser = InferInsertModel<typeof users> & { roles?: string[] };
+type NewUser = InferInsertModel<typeof users> & { storeRoles?: storeRoles[] };
+
+
+type StoreRoleForSession = {
+    storeName: string;
+    roleIds: string[];
+    isActive: boolean; // from stores.isActive
+    isCurrentStore: boolean; // from storeUsers.isCurrentStore
+};
+
+type OrganizationForSession = {
+    orgName: string;
+    isActive: boolean;
+};
+
+type UserDataForSession = {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    emailId: string;
+    phoneNumber: string;
+    isActive: boolean;
+    isDeleted: boolean;
+    authType: string;
+    password: string;
+
+    organization: OrganizationForSession;
+
+    storeRoles: StoreRoleForSession[];
+
+    roles: string[];
+    permissions: string[];
+};
 
 export const UserService = (fastify: FastifyInstance) => {
     const db = fastify.db;
 
     return {
-        // Create a new user
+        // Create a new user 
+        // Assign a default role "role_admin" if no roles are provided
+        // Creae a default store_user with storeName as 'All' if no stores are provided
+        // Create user in SuperTokens
         async createUser(
-            userData: Partial<NewUser>,
+            userData: Partial<NewUser> & {
+                storeRoles?: Array<{
+                    storeName: string;
+                    roleIds: string[];
+                    isCurrentStore: boolean;
+                }>;
+            },
             orgName: string,
-            storeName: string,
-            tx?: any, // Use the actual transaction type if available
-            role?: string
+            tx?: typeof db
         ): Promise<User> {
 
-            console.log(`create user Data: `, userData, orgName, storeName);
             if (
                 !userData.emailId ||
                 !userData.userId ||
@@ -36,74 +79,89 @@ export const UserService = (fastify: FastifyInstance) => {
                 throw new Error("Missing required user fields");
             }
 
-            // const hashedPassword = await bcrypt.hash('12345', 10);
-            const isActive = userData.isActive ?? true;
-            const authType = userData.authType ?? 'DB';
-
-            const updatedUserData: NewUser = {
-                ...userData,
-                id: createId(),
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                createdBy: userData.createdBy ? userData.createdBy : 'system',
-                updatedBy: userData.updatedBy ? userData.updatedBy : 'system',
-                // password: hashedPassword,
-                isActive,
-                authType,
-            } as NewUser;
-
-            const insertUserAndRole = async (trx: any) => {
-                const [user] = await trx.insert(users).values({
-                    ...updatedUserData,
-                }).returning();
-
-                const { roles } = userData;
-                if (roles && roles.length > 0) {
-
-                    //     await trx.insert(userRoles).values({
-                    //     id: createId(),
-                    //     userId: userData.userId!,
-                    //     roleId: role, // TODO change the default role
-                    //     orgName: orgName,
-                    //     storeName: storeName,
-                    //     createdBy: userData.createdBy ? userData.createdBy : 'system',
-                    //     updatedBy: userData.updatedBy ? userData.updatedBy : 'system',
-                    //     createdAt: new Date().toISOString(),
-                    //     updatedAt: new Date().toISOString(),
-                    // });
-
-                    const newRoleRows = roles.map(roleId => ({
+            const dbInstance = tx ?? db;
+            const now = new Date().toISOString();
+            try {
+                return await dbInstance.transaction(async (trx) => {
+                    const { storeRoles, ...userInsertData } = userData;
+                    const updatedUserData: NewUser = {
+                        ...userInsertData,
                         id: createId(),
-                        userId: userData.userId!,
-                        roleId,
-                        orgName: orgName || '',
-                        storeName: storeName || '',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        createdBy: userData.createdBy ? userData.createdBy : 'system',
-                        updatedBy: userData.updatedBy ? userData.updatedBy : 'system',
-                    }));
+                        emailId: userData.emailId? userData.emailId.toLowerCase() : '',
+                        userId: userData.emailId? userData.emailId.toLowerCase() : '',
+                        firstName: userData.firstName ? userData.firstName.trim() : '',
+                        lastName: userData.lastName ? userData.lastName.trim() : '',
+                        address1: userData.address1 ? userData.address1.trim() : '',
+                        city: userData.city ? userData.city.trim() : '',
+                        state: userData.state ? userData.state.trim() : '',
+                        zip: userData.zip ? userData.zip.trim() : '',
+                        country: userData.country ? userData.country.trim() : '',
+                        createdAt: now,
+                        updatedAt: now,
+                        createdBy: userData.createdBy ?? 'system',
+                        updatedBy: userData.updatedBy ?? 'system',
+                        isActive: userData.isActive ?? true,
+                        authType: userData.authType ?? 'emailpassword',
+                    }
 
-                    await trx.insert(userRoles).values(newRoleRows);
-                }
+                    // 1. Insert into users table
+                    const [user] = await trx
+                        .insert(users)
+                        .values({
+                            ...updatedUserData,
+                        })
+                        .returning();
 
-                // console.log(`User created:, ${user.emailId}, ${hashedPassword}`);
-                // TODO remove this api call to active org/user
-                await createUserInSuperTokens(user.emailId, fastify);
-                return user;
-            };
+                    if (!user) {
+                        throw new Error('Failed to create user');
+                    }
 
-            if (tx) {
-                // Use existing transaction
-                return await insertUserAndRole(tx);
-            } else {
-                // Create new transaction
-                try {
-                    const result = await db.transaction(insertUserAndRole);
-                    return result!;
-                } catch (error: any) {
-                    throw new Error(`Failed to create user: ${error.message}`);
-                }
+                    // 2. Insert userRoles
+                    if (storeRoles && storeRoles.length > 0) {
+                        const userRoleRows = storeRoles.flatMap(store => {
+                            if (!store.storeName || !store.roleIds?.length) return [];
+                            return store.roleIds.map(roleId => ({
+                                id: createId(),
+                                userId: user.userId,
+                                roleId,
+                                orgName: orgName || '',
+                                storeName: store.storeName,
+                                createdAt: now,
+                                updatedAt: now,
+                                createdBy: userData.createdBy ?? 'system',
+                                updatedBy: userData.updatedBy ?? 'system',
+                            }));
+                        });
+
+                        if (userRoleRows.length > 0) {
+                            await trx.insert(userRoles).values(userRoleRows);
+                        }
+
+                        // 3. Insert storeUsers
+                        const storeUserRows = storeRoles.map(store => ({
+                            id: createId(),
+                            orgName,
+                            storeName: store.storeName,
+                            userId: user.userId,
+                            isCurrentStore: store.isCurrentStore ?? false,
+                            createdAt: now,
+                            updatedAt: now,
+                            createdBy: userData.createdBy ?? 'system',
+                            updatedBy: userData.updatedBy ?? 'system',
+                        }));
+
+                        if (storeUserRows.length > 0) {
+                            await trx.insert(storeUsers).values(storeUserRows);
+                        }
+                    }
+
+                    // 4. Create user in SuperTokens
+                    await createUserInSuperTokens(user.userId, fastify);
+
+                    return user;
+                });
+            } catch (error: any) {
+                throw new Error(`Failed to create user: ${error.message}`);
             }
         },
 
@@ -115,7 +173,14 @@ export const UserService = (fastify: FastifyInstance) => {
             orgName: string,
             storeName: string
         ): Promise<{
-            users: Array<User & { orgName?: string; storeName?: string; roles: string[] }>;
+            users: Array<User & {
+                orgName?: string;
+                storeRoles: Array<{
+                    storeName: string;
+                    roleIds: string[];
+                    isCurrentStore: boolean;
+                }>;
+            }>;
             pagination: { total: number; page: number; limit: number; totalPages: number };
         }> {
             try {
@@ -136,16 +201,20 @@ export const UserService = (fastify: FastifyInstance) => {
 
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-                // Get paginated users with join
-                const joinedResults = await db.select().from(users)
+                // Join users with userRoles and storeUsers
+                const joinedResults = await db
+                    .select()
+                    .from(users)
                     .innerJoin(userRoles, eq(users.userId, userRoles.userId))
+                    .leftJoin(storeUsers, eq(users.userId, storeUsers.userId)) // ← LEFT JOIN storeUsers
                     .where(whereClause)
                     .offset(skip)
                     .limit(limit)
                     .orderBy(desc(users.createdAt));
 
-                // Get total count
-                const totalResult = await db.select({ count: count() })
+                // Total count
+                const totalResult = await db
+                    .select({ count: count() })
                     .from(users)
                     .innerJoin(userRoles, eq(users.userId, userRoles.userId))
                     .where(whereClause);
@@ -164,33 +233,64 @@ export const UserService = (fastify: FastifyInstance) => {
                     };
                 }
 
-                // Group users and their roles
-                const userMap = new Map<string, User & { orgName?: string; storeName?: string; roles: string[] }>();
+                // Group users with storeRoles
+                const userMap = new Map<
+                    string,
+                    User & {
+                        orgName?: string;
+                        storeRoles: Array<{
+                            storeName: string;
+                            roleIds: string[];
+                            isCurrentStore: boolean;
+                        }>;
+                    }
+                >();
 
                 for (const row of joinedResults) {
                     const user = row.users;
                     const role = row.user_roles;
+                    const storeUser = row.store_users;
 
                     if (!userMap.has(user.userId)) {
                         userMap.set(user.userId, {
                             ...user,
                             orgName: role.orgName,
-                            storeName: role.storeName || '',
-                            roles: [],
+                            storeRoles: [],
                         });
                     }
 
                     const existingUser = userMap.get(user.userId)!;
+                    const storeNameKey = role.storeName || 'All';
 
-                    if (!existingUser.roles.includes(role.roleId)) {
-                        existingUser.roles.push(role.roleId);
+                    let storeRole = existingUser.storeRoles.find(s => s.storeName === storeNameKey);
+                    if (!storeRole) {
+                        storeRole = {
+                            storeName: storeNameKey,
+                            roleIds: [],
+                            isCurrentStore: false,
+                        };
+                        existingUser.storeRoles.push(storeRole);
+                    }
+
+                    if (!storeRole.roleIds.includes(role.roleId)) {
+                        storeRole.roleIds.push(role.roleId);
+                    }
+
+                    // Set isCurrentStore if matched store exists in storeUsers
+                    if (
+                        storeUser &&
+                        storeUser.storeName === role.storeName &&
+                        storeUser.orgName === role.orgName &&
+                        storeUser.isCurrentStore === true
+                    ) {
+                        storeRole.isCurrentStore = true;
                     }
                 }
 
-                const usersWithRoles = Array.from(userMap.values());
+                const usersWithStoreRoles = Array.from(userMap.values());
 
                 return {
-                    users: usersWithRoles,
+                    users: usersWithStoreRoles,
                     pagination: {
                         total,
                         page,
@@ -205,58 +305,157 @@ export const UserService = (fastify: FastifyInstance) => {
 
 
         // Get user by ID
-        async getUserById(
-            userId: string,
-            // orgName: string,
-            // storeName: string
-        ): Promise<any> {
+        // async getUserById(userId: string): Promise<{
+        //     user: typeof users.$inferSelect; // or a more specific type
+        //     storeRoles: Array<{ storeName: string; roleIds: string[] }>;
+        //     permissions: string[];
+        // }> {
+        async getUserById(userId: string): Promise<any> {
             try {
                 const results = await db.select()
                     .from(users)
                     .innerJoin(userRoles, eq(users.userId, userRoles.userId))
                     .innerJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
-                    .where(and(
-                        eq(users.userId, userId),
-                        // eq(userRoles.orgName, orgName),
-                        // eq(userRoles.storeName, storeName)
-                    ))
+                    .where(eq(users.userId, userId))
                     .limit(100);
 
                 if (!results || results.length === 0) {
                     throw new Error('User not found');
                 }
 
-                console.log(`data loaded: `, results);
-                const userData: {
-                    user: typeof results[0]['users'] & { orgName?: string; storeName?: string };
-                    roles: string[];
-                    permissions: string[];
-                } = {
-                    user: results[0]?.users as any,
+                const user = results[0]?.users;
+
+                const storeRolesMap = new Map<string, Set<string>>();
+                const permissionsSet = new Set<string>();
+
+                for (const row of results) {
+                    const { storeName, roleId } = row.user_roles;
+                    const permissionId = row.role_permissions.permissionId;
+
+                    if (storeName) {
+                        if (!storeRolesMap.has(storeName)) {
+                            storeRolesMap.set(storeName, new Set());
+                        }
+                        storeRolesMap.get(storeName)!.add(roleId);
+                    }
+
+                    permissionsSet.add(permissionId);
+                }
+
+                const storeRoles = Array.from(storeRolesMap.entries()).map(([storeName, roleSet]) => ({
+                    storeName,
+                    roleIds: Array.from(roleSet),
+                }));
+
+                return {
+                    user,
+                    storeRoles,
+                    permissions: Array.from(permissionsSet),
+                };
+            } catch (error: any) {
+                throw new Error(`Failed to fetch user: ${error.message}`);
+            }
+        },
+
+        async getUserByIdForSession(userId: string): Promise<UserDataForSession> {
+            try {
+                const results = await db.select({
+                    userId: users.userId,
+                    firstName: users.firstName,
+                    lastName: users.lastName,
+                    emailId: users.emailId,
+                    phoneNumber: users.phoneNumber,
+                    userIsActive: users.isActive,
+                    userIsDeleted: users.isDeleted,
+                    authType: users.authType,
+                    password: users.password,
+
+                    orgName: organizations.orgName,
+                    orgIsActive: organizations.isActive,
+
+                    storeName: userRoles.storeName,
+                    storeIsActive: stores.isActive,
+
+                    roleId: userRoles.roleId,
+                    permissionId: rolePermissions.permissionId,
+
+                    isCurrentStore: storeUsers.isCurrentStore,  // from storeUsers join
+                })
+                    .from(users)
+                    .leftJoin(userRoles, eq(users.userId, userRoles.userId))  // LEFT JOIN for possible no roles
+                    .leftJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
+                    .innerJoin(organizations, eq(organizations.orgName, userRoles.orgName))  // org probably mandatory? If not, make LEFT JOIN
+                    .leftJoin(stores, and(eq(stores.orgName, userRoles.orgName), eq(stores.storeName, userRoles.storeName)))
+                    .leftJoin(storeUsers, and(
+                        eq(storeUsers.orgName, userRoles.orgName),
+                        eq(storeUsers.storeName, userRoles.storeName),
+                    ))  // LEFT JOIN storeUsers to get isCurrentStore, if any
+                    .where(eq(users.userId, userId))
+                    .limit(100);
+
+                if (!results || results.length === 0) {
+                    throw new Error('User not found');
+                }
+
+                const firstRow = results[0];
+
+                const userData: UserDataForSession = {
+                    userId: firstRow?.userId ? firstRow.userId : '',
+                    firstName: firstRow?.firstName ? firstRow.firstName : '',
+                    lastName: firstRow?.lastName ? firstRow.lastName : '',
+                    emailId: firstRow?.emailId ? firstRow.emailId : '',
+                    phoneNumber: firstRow?.phoneNumber ? firstRow.phoneNumber : '',
+                    isActive: firstRow?.userIsActive ? firstRow.userIsActive : false,
+                    isDeleted: firstRow?.userIsDeleted ? firstRow.userIsDeleted : false,
+                    authType: firstRow?.authType ? firstRow.authType : 'emailpassword',
+                    password: firstRow?.password ? firstRow.password : '',
+
+                    organization: {
+                        orgName: firstRow?.orgName ? firstRow.orgName : '',
+                        isActive: firstRow?.orgIsActive ? firstRow.orgIsActive : false,
+                    },
+
+                    storeRoles: [],
+
                     roles: [],
                     permissions: [],
                 };
 
+                const storeRolesMap = new Map<string, StoreRoleForSession>();
+
                 for (const row of results) {
-
-                    const role = row.user_roles;
-                    const permission = row.role_permissions;
-
-                    userData.user.orgName = role.orgName;
-                    userData.user.storeName = role.storeName ? role.storeName : '';
-
-                    // Add role if not already added
-                    if (!userData.roles.includes(role.roleId)) {
-                        userData.roles.push(role.roleId);
+                    // Roles and permissions
+                    if (row.roleId && !userData.roles.includes(row.roleId)) {
+                        userData.roles.push(row.roleId);
+                    }
+                    if (row.permissionId && !userData.permissions.includes(row.permissionId)) {
+                        userData.permissions.push(row.permissionId);
                     }
 
-                    // Add permission if not already added
-                    if (!userData.permissions.includes(permission.permissionId)) {
-                        userData.permissions.push(permission.permissionId);
+                    // Store grouping, include isCurrentStore (default false if null/undefined)
+                    const storeKey = row.storeName || 'All';
+
+                    if (!storeRolesMap.has(storeKey)) {
+                        storeRolesMap.set(storeKey, {
+                            storeName: storeKey,
+                            roleIds: [],
+                            isActive: row.storeIsActive ? true : false,
+                            isCurrentStore: row.isCurrentStore ?? false,
+                        });
+                    }
+
+                    const storeRoleEntry = storeRolesMap.get(storeKey)!;
+
+                    if (row.roleId && !storeRoleEntry.roleIds.includes(row.roleId)) {
+                        storeRoleEntry.roleIds.push(row.roleId);
+                    }
+
+                    // If any row has isCurrentStore = true, keep it true (because user can have multiple rows)
+                    if (row.isCurrentStore) {
+                        storeRoleEntry.isCurrentStore = true;
                     }
                 }
-
-                console.log(`userData: `, userData);
+                userData.storeRoles = Array.from(storeRolesMap.values());
                 return userData;
             } catch (error: any) {
                 throw new Error(`Failed to fetch user: ${error.message}`);
@@ -265,54 +464,81 @@ export const UserService = (fastify: FastifyInstance) => {
 
         // Update user
         async updateUser(
-            userData: Partial<NewUser> & { roles?: string[] },
+            userData: Partial<NewUser> & { storeRoles?: Array<{ storeName: string; roleIds: string[], isCurrentStore: boolean }> },
             orgName: string,
-            storeName: string,
-            tx?: typeof db, // Adjust this to your actual DB transaction type (e.g., Drizzle transaction type)
+            tx?: typeof db
         ): Promise<User> {
             if (!userData.userId) {
                 throw new Error('userId is required to update user');
             }
 
-            const dbInstance = tx ?? db; // use transaction if provided, else fallback to base db
+            console.log(`updating user Data: ${JSON.stringify(userData)} `);
+            const dbInstance = tx ?? db;
 
             try {
                 return await dbInstance.transaction(async (trx) => {
                     console.log(`update user Data: `, userData);
 
-                    const { roles, ...userUpdateData } = userData;
+                    const { storeRoles, ...userUpdateData } = userData;
 
-                    // 1. Update user data
+                    // 1. Update base user info
                     const [user] = await trx.update(users)
-                        .set(userUpdateData)
+                        .set({
+                            ...userUpdateData,
+                            updatedAt: new Date().toISOString(),
+                            updatedBy: userData.updatedBy ?? 'system',
+                        })
                         .where(eq(users.userId, userData.userId ? userData.userId : ''))
                         .returning();
 
-                    if (!user) throw new Error('User not found');
-
-                    // 2. Update roles
-                    if (roles && roles.length > 0) {
-                        // Delete old roles
-                        await trx.delete(userRoles).where(eq(userRoles.userId, userData.userId ? userData.userId : ''));
-
-                        // Insert new roles
-                        const now = new Date().toISOString();
-
-                        const newRoleRows = roles.map(roleId => ({
-                            id: createId(),
-                            userId: userData.userId!,
-                            roleId,
-                            orgName: orgName || '',
-                            storeName: storeName || '',
-                            createdAt: now,
-                            updatedAt: now,
-                            createdBy: userData.updatedBy || '',
-                            updatedBy: userData.updatedBy || '',
-                        }));
-
-                        await trx.insert(userRoles).values(newRoleRows);
+                    if (!user) {
+                        throw new Error('User not found');
                     }
 
+                    // 2. Update roles
+                    if (storeRoles && storeRoles.length > 0) {
+                        // Delete old userRoles for this user
+                        await trx.delete(userRoles).where(eq(userRoles.userId, userData.userId ? userData.userId : ''));
+
+                        // Re-insert updated userRoles
+                        const now = new Date().toISOString();
+                        const newRoleRows = storeRoles.flatMap(store => {
+                            if (!store.storeName || !store.roleIds?.length) return [];
+                            return store.roleIds.map(roleId => ({
+                                id: createId(),
+                                userId: userData.userId!,
+                                roleId,
+                                orgName: orgName || '',
+                                storeName: store.storeName,
+                                createdAt: now,
+                                updatedAt: now,
+                                createdBy: userData.updatedBy ?? 'system',
+                                updatedBy: userData.updatedBy ?? 'system',
+                            }));
+                        });
+
+                        if (newRoleRows.length > 0) {
+                            await trx.insert(userRoles).values(newRoleRows);
+                        }
+
+                        // 3. update storeUsers table if needed
+                        const storeUserRows = storeRoles.map(store => ({
+                            id: createId(),
+                            orgName,
+                            storeName: store.storeName,
+                            userId: userData.userId!,
+                            isCurrentStore: store.isCurrentStore ?? false,
+                            createdAt: now,
+                            updatedAt: now,
+                            createdBy: userData.updatedBy ?? 'system',
+                            updatedBy: userData.updatedBy ?? 'system',
+                        }));
+
+                        if (storeUserRows.length > 0) {
+                            await trx.delete(storeUsers).where(eq(storeUsers.userId, userData.userId ? userData.userId : ''));
+                            await trx.insert(storeUsers).values(storeUserRows);
+                        }
+                    }
                     return user;
                 });
             } catch (error: any) {
@@ -330,30 +556,36 @@ export const UserService = (fastify: FastifyInstance) => {
             if (!userId || !orgName || !storeName) {
                 throw new Error('User ID, organization ID, and store name are required');
             }
+
             try {
                 await db.transaction(async (tx) => {
-                    // First, delete from user_roles
-                    await tx
-                        .delete(userRoles)
-                        .where(and(
-                            eq(userRoles.userId, userId),
-                            eq(userRoles.orgName, orgName),
-                            eq(userRoles.storeName, storeName)
-                        ));
+                    // 1. Delete from userRoles for this store/org
+                    await tx.delete(userRoles).where(and(
+                        eq(userRoles.userId, userId),
+                        eq(userRoles.orgName, orgName),
+                        eq(userRoles.storeName, storeName)
+                    ));
 
-                    // Then delete from users table
-                    const [deletedUser] = await tx
-                        .delete(users)
-                        .where(and(
-                            eq(users.userId, userId),
-                        ))
-                        .returning();
+                    // 2. Delete from storeUsers
+                    await tx.delete(storeUsers).where(and(
+                        eq(storeUsers.userId, userId),
+                        eq(storeUsers.orgName, orgName),
+                        eq(storeUsers.storeName, storeName)
+                    ));
 
-                    if (!deletedUser) {
-                        throw new Error('User not found');
+                    // 3. Check if user has any remaining roles
+                    const remainingRoles = await tx.select().from(userRoles).where(eq(userRoles.userId, userId));
+
+                    // 4. Delete user only if no remaining roles
+                    if (remainingRoles.length === 0) {
+                        const [deletedUser] = await tx.delete(users)
+                            .where(eq(users.userId, userId))
+                            .returning();
+
+                        if (!deletedUser) {
+                            throw new Error('User not found');
+                        }
                     }
-
-                    return deletedUser;
                 });
 
                 return { message: `User ${userId} deleted successfully.` };
@@ -441,5 +673,40 @@ export const UserService = (fastify: FastifyInstance) => {
                 throw new Error(`Failed to update user password: ${error.message}`);
             }
         },
+
+        // First, deactivate all other stores for this user
+        // This will set the isCurrentStore flag to true for the user in the storeUsers table for the given store
+        async setUserCurrentStore(
+            userId: string,
+            orgName: string,
+            storeName: string
+        ): Promise<any> {
+            if (!userId || !orgName || !storeName) {
+                throw new Error('User ID, organization ID, and store name are required');
+            }
+            try {
+                // First, deactivate all other stores for this user
+
+                await db.update(storeUsers)
+                    .set({ isCurrentStore: false })
+                    .where(and(
+                        eq(storeUsers.userId, userId),
+                        eq(storeUsers.orgName, orgName)
+                    )).returning();
+
+                // Then, activate the specified store for this user
+                const [userStore] = await db.update(storeUsers)
+                    .set({ isCurrentStore: true })
+                    .where(and(
+                        eq(storeUsers.userId, userId),
+                        eq(storeUsers.orgName, orgName),
+                        eq(storeUsers.storeName, storeName)
+                    )).returning();
+
+                return userStore;
+            } catch (error: any) {
+                throw new Error(`Failed to set user active store: ${error.message}`);
+            }
+        }
     };
 };

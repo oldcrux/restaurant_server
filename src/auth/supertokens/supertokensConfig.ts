@@ -108,8 +108,20 @@ export const supertokensConfig = (fastify: FastifyInstance) => {
                             // here we are only overriding the function that's responsible
                             // for creating a new session
                             createNewSession: async function (input) {
-                                const user = await userService.getUserById(input.userId);
+                                const user = await userService.getUserByIdForSession(input.userId);
                                 console.log(`updating access token payload ${JSON.stringify(input.userId)}`);
+                                
+                                if(!user){
+                                    throw new Error(`User ${input.userId} not found`);
+                                }
+                                else if(user && user.organization && !user.organization.isActive) {
+                                    throw new Error(`Organization ${user.organization.orgName} is not active`);
+                                }
+                                // TODO add the check for users current store.
+                                else if(user && !user.isActive) {
+                                    throw new Error(`User ${user.userId} is not active`);
+                                }
+
                                 input.accessTokenPayload = {
                                     ...input.accessTokenPayload,
                                     user: user

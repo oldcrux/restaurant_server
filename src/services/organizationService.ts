@@ -4,9 +4,13 @@ import { organizations, users } from '../db/schema.js';
 import { createId } from '@paralleldrive/cuid2';
 import { UserService } from './userService.js';
 import { InferInsertModel } from 'drizzle-orm';
-import { users as usersTable } from '../db/schema.js'; // For type
 
-type NewUser = InferInsertModel<typeof usersTable>;
+type storeRoles = {
+    storeName: string;
+    roleIds: string[];
+};
+type NewUser = InferInsertModel<typeof users> & { storeRoles?: storeRoles[] };
+
 
 export const OrganizationService = (fastify: FastifyInstance) => {
     const db = fastify.db;
@@ -41,16 +45,14 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                     country: updatedOrganizationData.country || null,
                     createdBy: updatedOrganizationData.createdBy,
                     updatedBy: updatedOrganizationData.createdBy,
+                    storeRoles: [{ storeName: 'All', roleIds: ['role_admin'] }],
                 };
 
-                const role = 'role_admin';  // This is the default user creation. So assigning admin role
                 // Use userService.createUser and pass the transaction object
                 await userService.createUser(
                     userData,
                     updatedOrganizationData.orgName,
-                    updatedOrganizationData.storeName || '',
                     tx,
-                    role
                 );
 
                 return organization;
