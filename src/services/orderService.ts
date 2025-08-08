@@ -9,7 +9,7 @@ import { createId } from '@paralleldrive/cuid2';
 export const OrderService = (fastify: FastifyInstance) => {
     const db = fastify.db;
     const orderCounterService = OrderCounterService(fastify);
-    
+
     return {
         async createOrder(orderData: any) {
             console.log('Creating order with data:', orderData);
@@ -245,6 +245,46 @@ export const OrderService = (fastify: FastifyInstance) => {
             }
         },
 
+        async updateOrderStatusToDelivered(updateData: any) {
+            console.log('Updating order status to delivered with data:', updateData);
+
+            const existingOrderResult = await db
+                .select()
+                .from(orders)
+                .where(eq(orders.id, updateData.id))
+                .limit(1);
+
+            if (existingOrderResult.length === 0) {
+                throw new Error('Order not found');
+            }
+
+            const existingOrder = existingOrderResult[0];
+
+            if (existingOrder?.status !== OrderStatusConstant.READY) {
+                throw new Error(`Order is not ready to be delivered. Current status: ${existingOrder?.status}`);
+            }
+            const newTotalCost = existingOrder.totalCost - (updateData.totalDiscount || 0);
+            try {
+                const result = await db.transaction(async (tx) => {
+                    // Update order
+                    await tx
+                        .update(orders)
+                        .set({
+                            status: OrderStatusConstant.DELIVERED,
+                            totalCost: newTotalCost,
+                            totalDiscount: updateData.totalDiscount,
+                            updatedBy: updateData.updatedBy,
+                            updatedAt: new Date().toISOString()
+                        })
+                        .where(eq(orders.id, updateData.id))
+                        .returning();
+                });
+                return result;
+            } catch (error: any) {
+                throw new Error(`Failed to update order: ${error.message}`);
+            }
+        },
+
         async updateOrderStatus(id: string, status: string, updated_by: string) {
             // Check if order exists and get current status
             const existingOrderResult = await db
@@ -259,7 +299,7 @@ export const OrderService = (fastify: FastifyInstance) => {
 
             const existingOrder = existingOrderResult[0];
 
-            if (![OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED, OrderStatusConstant.PROCESSING,  OrderStatusConstant.READY,OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(status as any)) {
+            if (![OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED, OrderStatusConstant.PROCESSING, OrderStatusConstant.READY, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(status as any)) {
                 throw new Error(`Invalid order status: ${status}`);
             }
             // Validate status transitions
@@ -434,7 +474,7 @@ export const OrderService = (fastify: FastifyInstance) => {
         async getLatestOrder(customerPhoneNumber: string, orgName: string, storeName: string, limit: number = 1) {
             const now = new Date();
             const start = formatISO(startOfDay(now)); // "2025-07-16T00:00:00.000Z"
-            const end = formatISO(endOfDay(now));  
+            const end = formatISO(endOfDay(now));
             void start, end, gte, lte;   // TODO delete this line
             try {
                 const ordersList = await db

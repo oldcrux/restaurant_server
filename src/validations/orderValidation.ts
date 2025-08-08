@@ -54,6 +54,21 @@ export const updateOrderSchema = z.object({
   updatedBy: z.string().optional(),
 });
 
+export const updateOrderToDeliveredSchema = z.object({
+  id: z.string(),
+  orderNumber: z.number().int('Order number must be an integer').positive('Order number must be a positive number'),
+  customerName: z.string().min(2, 'Customer name must be at least 2 characters').max(100, 'Customer name must be less than 100 characters').optional(),
+  customerPhoneNumber: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format').optional(),
+  status: z.enum(orderStatusValues).optional(),
+  totalDiscount: z.number().nonnegative('Total discount must be a non-negative number').optional(),
+  storeName: z.string().min(2, 'Store number is required'),
+  orgName: z.string().min(2, 'Organization name is required'),
+  orderDetails: z.array(updateOrderDetailSchema).min(1, 'At least one order detail is required').optional(),
+  notes: z.string().max(500, 'Notes must be less than 500 characters').optional(),
+  createdBy: z.string().optional(),
+  updatedBy: z.string().optional(),
+});
+
 export const idSchema = z.object({
   id: z.string(),
 });

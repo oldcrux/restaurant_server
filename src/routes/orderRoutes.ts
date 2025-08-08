@@ -1,6 +1,6 @@
 import { validateBody, validateParams } from '../middleware/validation.js';
 import { OrderService } from '../services/orderService.js';
-import { createOrderSchema, updateOrderSchema, idSchema, upadateStatusSchema } from '../validations/orderValidation.js';
+import { createOrderSchema, updateOrderSchema, idSchema, upadateStatusSchema, updateOrderToDeliveredSchema } from '../validations/orderValidation.js';
 import { FastifyInstance } from 'fastify';
 
 export async function orderRoutes(fastify: FastifyInstance) {
@@ -75,7 +75,14 @@ export async function orderRoutes(fastify: FastifyInstance) {
   fastify.post('/update', { preHandler: validateBody(updateOrderSchema) }, async (request, reply) => {
     const body = request.body as any;
     body.updatedBy = "system"; // TODO: Replace with value from JWT
-    const order = await orderService.updateOrder(body); // TODO: Hardcoded orderId — fix in future
+    const order = await orderService.updateOrder(body);
+    reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
+  });
+
+  // POST /api/order/update/status/delivered
+  fastify.post('/update/status/delivered', { preHandler: validateBody(updateOrderToDeliveredSchema) }, async (request, reply) => {
+    const body = request.body as any;
+    const order = await orderService.updateOrderStatusToDelivered(body);
     reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
   });
 
