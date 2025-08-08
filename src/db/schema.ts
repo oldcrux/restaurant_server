@@ -118,7 +118,8 @@ export const users = pgTable("users", {
 	state: text().notNull(),
 	zip: text().notNull(),
 	country: text().notNull(),
-	authType: text("auth_type").notNull(),
+	// authType: text("auth_type").notNull(),
+	userType: text("user_type").notNull().default('HUMAN'), // HUMAN, BOT
 	password: text(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
@@ -127,7 +128,7 @@ export const users = pgTable("users", {
 	// orgName: text("org_name").notNull(),
 	// storeName: text("store_name").notNull(),
 }, (table) => [
-	uniqueIndex("users_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
+	// uniqueIndex("users_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
 	uniqueIndex("users_user_id_org_name_store_name_key").using("btree", table.userId.asc().nullsLast().op("text_ops"), 
 	// table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")
 	),

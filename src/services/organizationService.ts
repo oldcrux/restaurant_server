@@ -8,6 +8,7 @@ import { InferInsertModel } from 'drizzle-orm';
 type storeRoles = {
     storeName: string;
     roleIds: string[];
+    isCurrentStore: boolean;
 };
 type NewUser = InferInsertModel<typeof users> & { storeRoles?: storeRoles[] };
 
@@ -31,29 +32,30 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                     .values(updatedOrganizationData)
                     .returning();
 
-                const userData: Partial<NewUser> = {
-                    userId: updatedOrganizationData.emailId,
-                    emailId: updatedOrganizationData.emailId,
-                    firstName: updatedOrganizationData.firstName,
-                    lastName: updatedOrganizationData.lastName,
-                    phoneNumber: updatedOrganizationData.phoneNumber,
-                    address1: updatedOrganizationData.address1,
-                    address2: updatedOrganizationData.address2 || null,
-                    city: updatedOrganizationData.city || null,
-                    state: updatedOrganizationData.state || null,
-                    zip: updatedOrganizationData.zip || null,
-                    country: updatedOrganizationData.country || null,
-                    createdBy: updatedOrganizationData.createdBy,
-                    updatedBy: updatedOrganizationData.createdBy,
-                    storeRoles: [{ storeName: 'All', roleIds: ['role_admin'] }],
-                };
+                // const userData: Partial<NewUser> = {
+                //     userId: updatedOrganizationData.emailId,
+                //     emailId: updatedOrganizationData.emailId,
+                //     firstName: updatedOrganizationData.firstName,
+                //     lastName: updatedOrganizationData.lastName,
+                //     phoneNumber: updatedOrganizationData.phoneNumber,
+                //     address1: updatedOrganizationData.address1,
+                //     address2: updatedOrganizationData.address2 || null,
+                //     city: updatedOrganizationData.city || null,
+                //     state: updatedOrganizationData.state || null,
+                //     zip: updatedOrganizationData.zip || null,
+                //     country: updatedOrganizationData.country || null,
+                //     userType: 'HUMAN',
+                //     createdBy: updatedOrganizationData.createdBy,
+                //     updatedBy: updatedOrganizationData.createdBy,
+                //     storeRoles: [{ storeName: 'All', roleIds: ['role_admin'], isCurrentStore: true }],
+                // };
 
-                // Use userService.createUser and pass the transaction object
-                await userService.createUser(
-                    userData,
-                    updatedOrganizationData.orgName,
-                    tx,
-                );
+                // // Use userService.createUser and pass the transaction object
+                // await userService.createUser(
+                //     userData,
+                //     updatedOrganizationData.orgName,
+                //     tx as any
+                // );
 
                 return organization;
             });
@@ -61,8 +63,11 @@ export const OrganizationService = (fastify: FastifyInstance) => {
             return result;
         },
 
+        // Activate organization
+        // Creates a default admin user for the organization
+        // and sends an email notification to the admin with login credentials
         async activateOrganization(orgName: string, updatedBy: string) {
-            const organization = await db.select({ emailId: organizations.emailId })
+            const organization = await db.select()
                 .from(organizations)
                 .where(eq(organizations.orgName, orgName))
                 .limit(1);
@@ -70,14 +75,42 @@ export const OrganizationService = (fastify: FastifyInstance) => {
             if (organization.length === 0) throw new Error('Organization not found');
 
             await db.transaction(async (tx) => {
-                await tx.update(organizations).set({ isActive: true, updatedBy: updatedBy }).where(eq(organizations.orgName, orgName));
+                await tx.update(organizations)
+                    .set({ isActive: true, updatedBy: updatedBy })
+                    .where(eq(organizations.orgName, orgName));
+
                 // await tx.update(stores).set({ isActive: true, updatedBy: updatedBy })
                 //     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, '00')));
-                await tx.update(users).set({ isActive: true, updatedBy: updatedBy })
-                    .where(and(eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
-            });
+                // await tx.update(users).set({ isActive: true, updatedBy: updatedBy })
+                //     .where(and(eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
 
-            // TODO: trigger email notification to the organization admin with the login credentials/ password reset link
+                await fastify.services.organizationActivationEmail(organization[0]?.emailId ? organization[0].emailId : '', orgName);
+
+                const userData: Partial<NewUser> = {
+                    userId: organization[0]?.emailId ? organization[0].emailId : '',
+                    emailId: organization[0]?.emailId ? organization[0].emailId : '',
+                    firstName: 'Admin',
+                    lastName: 'Admin',
+                    phoneNumber: organization[0]?.phoneNumber,
+                    address1: organization[0]?.address1 ? organization[0].address1 : '',
+                    address2: organization[0]?.address2 || null,
+                    city: organization[0]?.city ? organization[0].city : '',
+                    state: organization[0]?.state ? organization[0].state : '',
+                    zip: organization[0]?.zip ? organization[0].zip : '',
+                    country: organization[0]?.country ? organization[0].country : '',
+                    userType: 'HUMAN',
+                    createdBy: organization[0]?.createdBy ? organization[0].createdBy : 'system',
+                    updatedBy: organization[0]?.updatedBy ? organization[0].updatedBy : 'system',
+                    storeRoles: [{ storeName: 'All', roleIds: ['role_admin'], isCurrentStore: true }],
+                };
+
+                // Use userService.createUser and pass the transaction object
+                await userService.createUser(
+                    userData,
+                    organization[0]?.orgName ? organization[0].orgName : '',
+                    tx as any
+                );
+            });
             return organization;
         },
 
@@ -96,6 +129,7 @@ export const OrganizationService = (fastify: FastifyInstance) => {
                 // await tx.update(users).set({ isActive: false, updatedBy: updatedBy })
                 //     .where(and(eq(users.orgName, orgName), eq(users.storeName, '00'), eq(users.userId, organization[0]?.emailId? organization[0].emailId : '')));
             });
+            await fastify.services.organizationDeactivationEmail(organization[0]?.emailId ? organization[0].emailId : '', orgName);
         },
 
         async getAllOrganizations(page = 1, limit = 10, status: boolean | null = null) {

@@ -1,4 +1,8 @@
 import { FastifyInstance } from 'fastify';
+import jwt from 'jsonwebtoken';
+
+const BOT_SECRET = process.env.BOT_JWT_SECRET!;
+
 
 export async function healthRoutes(
   server: FastifyInstance,
@@ -87,4 +91,16 @@ export async function healthRoutes(
       ready: true,
     };
   });
+
+  server.get('/token', async (_request, reply) => {
+    const token = jwt.sign(
+      {
+        sub: 'Bot',
+      },
+      BOT_SECRET,
+      { expiresIn: '5m' }
+    );
+    reply.send({ token });
+  });
+
 }

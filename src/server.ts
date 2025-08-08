@@ -101,14 +101,16 @@ export async function createServer() {
   // Register routes
   await server.register(healthRoutes);
 
-  server.addHook('preHandler', verifyBotOrUserSession());
+  await server.register(async function (secureRoutes) {
+    secureRoutes.addHook('preHandler', verifyBotOrUserSession());
 
-  await server.register(organizationRoutes, { prefix: 'api/organization' });
-  await server.register(storeRoutes, { prefix: 'api/store' });
-  await server.register(userRoutes, { prefix: 'api/user' });
-  await server.register(roleRoutes, { prefix: 'api/role' });
-  await server.register(menuItemRoutes, { prefix: 'api/menu-items' });
-  await server.register(orderRoutes, { prefix: 'api/order' });
+    await secureRoutes.register(organizationRoutes, { prefix: 'api/organization' });
+    await secureRoutes.register(storeRoutes, { prefix: 'api/store' });
+    await secureRoutes.register(userRoutes, { prefix: 'api/user' });
+    await secureRoutes.register(roleRoutes, { prefix: 'api/role' });
+    await secureRoutes.register(menuItemRoutes, { prefix: 'api/menu-items' });
+    await secureRoutes.register(orderRoutes, { prefix: 'api/order' });
+  });
 
   return server;
 }

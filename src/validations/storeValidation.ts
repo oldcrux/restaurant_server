@@ -27,6 +27,9 @@ export const createStoreSchema = z.object({
     )
     .optional(),
   phoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),
+  trunkPhoneNumber: z.string().optional().refine(
+    (val) => !val || /^\+?[1-9]\d{1,14}$/.test(val),
+    { message: 'Invalid phone number format' }),
   address1: z.string().min(5, 'Address line 1 is required'),
   address2: z.string().optional(),
   city: z.string().min(2, 'City must be at least 2 characters long'),

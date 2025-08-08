@@ -3,12 +3,16 @@ import { stores } from '../db/schema.js';
 import { eq, and, count, desc } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
+import { UserService } from './userService.js';
+import { OrganizationService } from './organizationService.js';
 
 type Store = InferSelectModel<typeof stores>;
 type NewStore = InferInsertModel<typeof stores>;
 
 export const StoreService = (fastify: FastifyInstance) => {
     const db = fastify.db;
+    const userService = UserService(fastify);
+    const organizationService = OrganizationService(fastify);
 
     return {
         // Create a new store
@@ -17,21 +21,47 @@ export const StoreService = (fastify: FastifyInstance) => {
             // TODO : orgName should be validated before creating a store.
             // TODO : phone number, trunk phone number should be validated before creating a store.  Phone number is unique across all stores.
             // TODO : orgName + storeName should be unique
-            const newStore: NewStore = {
-                ...storeData,
-                id: createId(),
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString(),
-                isActive: storeData.isActive !== undefined ? storeData.isActive : false,
-                isDeleted: false,
-            } as NewStore;
+            return await db.transaction(async (tx) => {
+                // TODO: Validate orgName, phone numbers, and uniqueness (outside or inside tx as needed)
+                const newStore: NewStore = {
+                    ...storeData,
+                    id: createId(),
+                    createdAt: now.toISOString(),
+                    updatedAt: now.toISOString(),
+                    isActive: storeData.isActive !== undefined ? storeData.isActive : false,
+                    isDeleted: false,
+                } as NewStore;
 
-            try {
-                const [store] = await db.insert(stores).values(newStore).returning();
+                const [store] = await tx.insert(stores).values(newStore).returning();
+
+                if (storeData.trunkPhoneNumber) {
+                    const org = await organizationService.getOrganizationById(storeData.orgName || '');
+                    if (!org) {
+                        throw new Error('Organization not found for the store');
+                    }
+
+                    const userData = {
+                        userId: storeData.trunkPhoneNumber,
+                        emailId: org.emailId,
+                        firstName: 'Store',
+                        lastName: 'Admin',
+                        userType: 'BOT', // BOT for trunk phone number
+                        phoneNumber: storeData.trunkPhoneNumber,
+                        createdBy: storeData.createdBy || 'system',
+                        updatedBy: storeData.createdBy || 'system',
+                        storeRoles: [
+                            {
+                                storeName: storeData.storeName || '',
+                                roleIds: ['role_staff'],
+                                isCurrentStore: true,
+                            },
+                        ],
+                    };
+                    await userService.createUser(userData, storeData.orgName || '', tx as any);
+                }
+
                 return store!;
-            } catch (error: any) {
-                throw new Error(`Failed to create store: ${error.message}`);
-            }
+            });
         },
 
         // Activate a store
@@ -138,25 +168,61 @@ export const StoreService = (fastify: FastifyInstance) => {
         },
 
         // Update store
-        async updateStore(data: Partial<Store>): Promise<Store> {
+        async updateStore(storeData: Partial<Store>): Promise<Store> {
             const updateData = {
-                ...data,
+                ...storeData,
                 updatedAt: new Date().toISOString(),
             };
-
+            console.log('Updating store with data:', updateData);
             // TODO : phone number should be validated.  Phone number is unique across all stores.
-            try {
-                const [store] = await db
-                    .update(stores)
-                    .set(updateData)
-                    .where(and(eq(stores.storeName, updateData.storeName!), eq(stores.orgName, updateData.orgName!)))
-                    .returning();
+            return await db.transaction(async (tx) => {
+                try {
+                    const [store] = await tx
+                        .update(stores)
+                        .set(updateData)
+                        .where(and(eq(stores.storeName, updateData.storeName!), eq(stores.orgName, updateData.orgName!)))
+                        .returning();
 
-                if (!store) throw new Error('Store not found');
-                return store;
-            } catch (error: any) {
-                throw new Error(`Failed to update store: ${error.message}`);
-            }
+                    if (!store) throw new Error('Store not found');
+                    if (storeData.trunkPhoneNumber) {
+                        const user = await userService.getUserById(storeData.trunkPhoneNumber);
+                        if (!user) {
+                            const org = await organizationService.getOrganizationById(storeData.orgName || '');
+                            if (!org) {
+                                throw new Error('Organization not found for the store');
+                            }
+
+                            const userData = {
+                                userId: storeData.trunkPhoneNumber,
+                                emailId: org.emailId,
+                                firstName: 'Store',
+                                lastName: 'Admin',
+                                userType: 'BOT', // BOT for trunk phone number
+                                phoneNumber: storeData.trunkPhoneNumber,
+                                address1: storeData.address1 || '',
+                                address2: storeData.address2 || '',
+                                city: storeData.city || '',
+                                state: storeData.state || '',
+                                zip: storeData.zip || '',
+                                country: storeData.country || '',
+                                createdBy: storeData.createdBy || 'system',
+                                updatedBy: storeData.createdBy || 'system',
+                                storeRoles: [
+                                    {
+                                        storeName: storeData.storeName || '',
+                                        roleIds: ['role_staff'],
+                                        isCurrentStore: true,
+                                    },
+                                ],
+                            };
+                            await userService.createUser(userData, storeData.orgName || '', tx as any);
+                        }
+                    }
+                    return store;
+                } catch (error: any) {
+                    throw new Error(`Failed to update store: ${error.message}`);
+                }
+            });
         },
 
         // Soft delete store

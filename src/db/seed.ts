@@ -9,29 +9,65 @@ const ADMIN_USER_ID = 'system-admin';
 
 // Permissions data
 export const seedPermissions = [
-  { permissionId: 'perm_all', permissionName: 'ALL' },
-  { permissionId: 'perm_read', permissionName: 'READ' },
-  { permissionId: 'perm_write', permissionName: 'WRITE' },
+  { permissionId: 'perm_all', permissionName: 'all' },
+  { permissionId: 'store_create', permissionName: 'store_create' },
+  { permissionId: 'store_read', permissionName: 'store_read' },
+  { permissionId: 'store_write', permissionName: 'store_write' },
+  { permissionId: 'order_read', permissionName: 'order_read' },
+  { permissionId: 'order_write', permissionName: 'order_write' },
+  { permissionId: 'user_read', permissionName: 'user_read' },
+  { permissionId: 'user_write', permissionName: 'user_write' },
+  { permissionId: 'appointment_read', permissionName: 'appointment_read' },
+  { permissionId: 'appointment_write', permissionName: 'appointment_write' },
 ];
 
 // Roles data
 export const seedRoles = [
+  { roleId: 'role_system', roleName: 'SYSTEM' },
   { roleId: 'role_admin', roleName: 'ADMIN' },
+  { roleId: 'role_viewer', roleName: 'VIEWER' },
   { roleId: 'role_manager', roleName: 'MANAGER' },
   { roleId: 'role_staff', roleName: 'STAFF' },
 ];
 
 // Role-Permissions mapping
 export const seedRolePermissions = [
-  // ADMIN has ALL permissions
-  { roleId: 'role_admin', permissionId: 'perm_all' },
+  // SYSTEM has ALL permissions
+  { roleId: 'role_system', permissionId: 'perm_all' },
   
+  // ADMIN has READ and WRITE permissions for all
+  { roleId: 'role_admin', permissionId: 'store_create' },
+  { roleId: 'role_admin', permissionId: 'store_read' },
+  { roleId: 'role_admin', permissionId: 'store_write' },
+  { roleId: 'role_admin', permissionId: 'order_read' },
+  { roleId: 'role_admin', permissionId: 'order_write' },
+  { roleId: 'role_admin', permissionId: 'user_read' },
+  { roleId: 'role_admin', permissionId: 'user_write' },
+  { roleId: 'role_admin', permissionId: 'appointment_read' },
+  { roleId: 'role_admin', permissionId: 'appointment_write' },
+  
+  // VIEWER has READ permissions
+  { roleId: 'role_viewer', permissionId: 'store_read' },
+  { roleId: 'role_viewer', permissionId: 'order_read' },
+  { roleId: 'role_viewer', permissionId: 'user_read' },
+  { roleId: 'role_viewer', permissionId: 'appointment_read' },
+
   // MANAGER has READ and WRITE permissions
-  { roleId: 'role_manager', permissionId: 'perm_read' },
-  { roleId: 'role_manager', permissionId: 'perm_write' },
+  { roleId: 'role_store_manager', permissionId: 'store_read' },
+  { roleId: 'role_store_manager', permissionId: 'store_write' },
+  { roleId: 'role_store_manager', permissionId: 'order_read' },
+  { roleId: 'role_store_manager', permissionId: 'order_write' },
+  { roleId: 'role_store_manager', permissionId: 'user_read' },
+  { roleId: 'role_store_manager', permissionId: 'user_write' },
+  { roleId: 'role_store_manager', permissionId: 'appointment_read' },
+  { roleId: 'role_store_manager', permissionId: 'appointment_write' },
   
   // STAFF has READ permission
-  { roleId: 'role_staff', permissionId: 'perm_read' },
+  { roleId: 'role_staff', permissionId: 'order_read' },
+  { roleId: 'role_staff', permissionId: 'order_write' },
+  { roleId: 'role_staff', permissionId: 'appointment_read' },
+  { roleId: 'role_staff', permissionId: 'appointment_write' },
+
 ];
 
 // Function to seed the database

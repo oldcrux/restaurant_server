@@ -38,12 +38,15 @@ export async function organizationRoutes(fastify: FastifyInstance) {
   fastify.post('/create', { preHandler: validateBody(createOrganizationSchema) }, async (request, reply) => {
     const body = request.body as any;
     
-    console.log('Request user in organizationRoutes.ts', (request as any).user);
+    // console.log('Request user in organizationRoutes.ts', (request as any).user);
     const user = (request as any).user
     if(user.isBot) {
       body.createdBy = user.userId;
       body.updatedBy = user.userId;
     }
+    // body.createdBy = 'system'; // for postman API testing
+    // body.updatedBy = 'system';
+
     console.log('body in organizationRoutes.ts', body);
     const organization = await organizationService.createOrganization(body);
     reply.code(201).send({ success: true, message: 'Organization created successfully', data: organization });

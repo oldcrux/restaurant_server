@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { organizations, rolePermissions, stores, storeUsers, userRoles, users } from '../db/schema.js';
-import { eq, and, count, desc, inArray, is } from 'drizzle-orm';
+import { eq, and, count, desc, inArray } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { createUserInSuperTokens } from '../auth/supertokens/supertokensService.js';
@@ -34,11 +34,11 @@ type UserDataForSession = {
     phoneNumber: string;
     isActive: boolean;
     isDeleted: boolean;
-    authType: string;
+    userType: string;
     password: string;
 
     organization: OrganizationForSession;
-
+    currentStore: string | 'All';
     storeRoles: StoreRoleForSession[];
 
     roles: string[];
@@ -87,8 +87,8 @@ export const UserService = (fastify: FastifyInstance) => {
                     const updatedUserData: NewUser = {
                         ...userInsertData,
                         id: createId(),
-                        emailId: userData.emailId? userData.emailId.toLowerCase() : '',
-                        userId: userData.emailId? userData.emailId.toLowerCase() : '',
+                        emailId: userData.emailId ? userData.emailId.toLowerCase() : '',
+                        userId: userData.userId ? userData.userId : userData.emailId?.toLowerCase() || '',
                         firstName: userData.firstName ? userData.firstName.trim() : '',
                         lastName: userData.lastName ? userData.lastName.trim() : '',
                         address1: userData.address1 ? userData.address1.trim() : '',
@@ -101,7 +101,7 @@ export const UserService = (fastify: FastifyInstance) => {
                         createdBy: userData.createdBy ?? 'system',
                         updatedBy: userData.updatedBy ?? 'system',
                         isActive: userData.isActive ?? true,
-                        authType: userData.authType ?? 'emailpassword',
+                        userType: userData.userType ?? 'HUMAN',
                     }
 
                     // 1. Insert into users table
@@ -155,8 +155,10 @@ export const UserService = (fastify: FastifyInstance) => {
                         }
                     }
 
-                    // 4. Create user in SuperTokens
-                    await createUserInSuperTokens(user.userId, fastify);
+                    // 4. Create user in SuperTokens only for human users
+                    if (user.userType === 'HUMAN') {
+                        await createUserInSuperTokens(user.userId, fastify);
+                    }
 
                     return user;
                 });
@@ -164,6 +166,126 @@ export const UserService = (fastify: FastifyInstance) => {
                 throw new Error(`Failed to create user: ${error.message}`);
             }
         },
+
+        // async createUser(
+        //     userData: Partial<NewUser> & {
+        //         storeRoles?: Array<{
+        //             storeName: string;
+        //             roleIds: string[];
+        //             isCurrentStore: boolean;
+        //         }>;
+        //     },
+        //     orgName: string,
+        //     tx?: typeof db
+        //     // tx?: Parameters<typeof db.transaction>[0] extends (fn: (tx: infer T) => any) => any ? T : never
+        // ): Promise<User> {
+
+        //     if (tx) {
+        //         // Use parent transaction
+        //         return await this.createUserInternal(userData, orgName, tx );
+        //     }
+
+        //     // Otherwise, start a new transaction
+        //     return await db.transaction(async trx => {
+        //         return await this.createUserInternal(userData, orgName, trx);
+        //     });
+        // },
+
+
+        // async createUserInternal(
+        //     userData: Partial<NewUser> & {
+        //         storeRoles?: Array<{
+        //             storeName: string;
+        //             roleIds: string[];
+        //             isCurrentStore: boolean;
+        //         }>;
+        //     },
+        //     orgName: string,
+        //     trx: any // TODO : Replace with correct type for transaction
+        // ): Promise<User> {
+        //     if (
+        //         !userData.emailId ||
+        //         !userData.userId ||
+        //         !userData.firstName ||
+        //         !userData.lastName ||
+        //         !userData.address1 ||
+        //         !userData.city ||
+        //         !userData.state ||
+        //         !userData.zip ||
+        //         !userData.country
+        //     ) {
+        //         throw new Error("Missing required user fields");
+        //     }
+
+        //     const now = new Date().toISOString();
+        //     const { storeRoles, ...userInsertData } = userData;
+
+        //     const updatedUserData: NewUser = {
+        //         ...userInsertData,
+        //         id: createId(),
+        //         emailId: userData.emailId.toLowerCase(),
+        //         userId: userData.userId.toLowerCase(),
+        //         firstName: userData.firstName.trim(),
+        //         lastName: userData.lastName.trim(),
+        //         address1: userData.address1.trim(),
+        //         city: userData.city.trim(),
+        //         state: userData.state.trim(),
+        //         zip: userData.zip.trim(),
+        //         country: userData.country.trim(),
+        //         createdAt: now,
+        //         updatedAt: now,
+        //         createdBy: userData.createdBy ?? 'system',
+        //         updatedBy: userData.updatedBy ?? 'system',
+        //         isActive: userData.isActive ?? true,
+        //         userType: userData.userType ?? 'HUMAN',
+        //     };
+
+        //     const [user] = await trx.insert(users).values(updatedUserData).returning();
+        //     if (!user) throw new Error('Failed to create user');
+
+        //     if (storeRoles?.length) {
+        //         const userRoleRows = storeRoles.flatMap(store => {
+        //             if (!store.storeName || !store.roleIds?.length) return [];
+        //             return store.roleIds.map(roleId => ({
+        //                 id: createId(),
+        //                 userId: user.userId,
+        //                 roleId,
+        //                 orgName: orgName || '',
+        //                 storeName: store.storeName,
+        //                 createdAt: now,
+        //                 updatedAt: now,
+        //                 createdBy: userData.createdBy ?? 'system',
+        //                 updatedBy: userData.updatedBy ?? 'system',
+        //             }));
+        //         });
+
+        //         if (userRoleRows.length) {
+        //             await trx.insert(userRoles).values(userRoleRows);
+        //         }
+
+        //         const storeUserRows = storeRoles.map(store => ({
+        //             id: createId(),
+        //             orgName,
+        //             storeName: store.storeName,
+        //             userId: user.userId,
+        //             isCurrentStore: store.isCurrentStore ?? false,
+        //             createdAt: now,
+        //             updatedAt: now,
+        //             createdBy: userData.createdBy ?? 'system',
+        //             updatedBy: userData.updatedBy ?? 'system',
+        //         }));
+
+        //         if (storeUserRows.length) {
+        //             await trx.insert(storeUsers).values(storeUserRows);
+        //         }
+        //     }
+
+        //     if(user.userType === 'HUMAN') {
+        //     await createUserInSuperTokens(user.userId, fastify);
+        // }
+        //     return user;
+        // },
+
 
         // Get all users with optional status
         async getAllUsers(
@@ -195,9 +317,11 @@ export const UserService = (fastify: FastifyInstance) => {
                     whereConditions.push(eq(userRoles.orgName, orgName));
                 }
 
-                if (storeName) {
-                    whereConditions.push(inArray(userRoles.storeName, [storeName, 'All']));
+                else if (storeName && storeName !== 'All') {
+                    whereConditions.push(eq(userRoles.storeName, storeName));
                 }
+                // const stores = storeName ? [storeName, 'All'] : ['All'];
+                // whereConditions.push(inArray(userRoles.storeName, stores));
 
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
@@ -320,7 +444,7 @@ export const UserService = (fastify: FastifyInstance) => {
                     .limit(100);
 
                 if (!results || results.length === 0) {
-                    throw new Error('User not found');
+                    return null;
                 }
 
                 const user = results[0]?.users;
@@ -367,7 +491,7 @@ export const UserService = (fastify: FastifyInstance) => {
                     phoneNumber: users.phoneNumber,
                     userIsActive: users.isActive,
                     userIsDeleted: users.isDeleted,
-                    authType: users.authType,
+                    userType: users.userType,
                     password: users.password,
 
                     orgName: organizations.orgName,
@@ -407,13 +531,14 @@ export const UserService = (fastify: FastifyInstance) => {
                     phoneNumber: firstRow?.phoneNumber ? firstRow.phoneNumber : '',
                     isActive: firstRow?.userIsActive ? firstRow.userIsActive : false,
                     isDeleted: firstRow?.userIsDeleted ? firstRow.userIsDeleted : false,
-                    authType: firstRow?.authType ? firstRow.authType : 'emailpassword',
+                    userType: firstRow?.userType ? firstRow.userType : 'HUMAN',
                     password: firstRow?.password ? firstRow.password : '',
 
                     organization: {
                         orgName: firstRow?.orgName ? firstRow.orgName : '',
                         isActive: firstRow?.orgIsActive ? firstRow.orgIsActive : false,
                     },
+                    currentStore: 'All',
 
                     storeRoles: [],
 
@@ -431,7 +556,9 @@ export const UserService = (fastify: FastifyInstance) => {
                     if (row.permissionId && !userData.permissions.includes(row.permissionId)) {
                         userData.permissions.push(row.permissionId);
                     }
-
+                    if (row.isCurrentStore || row.storeName === 'All') {
+                        userData.currentStore = row.storeName ? row.storeName : 'All';
+                    }
                     // Store grouping, include isCurrentStore (default false if null/undefined)
                     const storeKey = row.storeName || 'All';
 

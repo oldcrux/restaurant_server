@@ -28,7 +28,7 @@ const mailerPlugin: FastifyPluginAsync = async (fastify) => {
     fastify.decorate('mailer', transporterOptions);
 
     fastify.decorate("services", {
-        sendTemporaryPass: async (email: string, tempPW: string) => {
+        emailTemporaryPassword: async (email: string, tempPW: string) => {
             return fastify.mailer.sendMail({
                 from: process.env.EMAIL_USER,
                 to: email,
@@ -36,6 +36,22 @@ const mailerPlugin: FastifyPluginAsync = async (fastify) => {
                 text: `Your temp password is ${tempPW}`,
             });
         },
+        organizationActivationEmail: async (email: string, orgName: string) => {
+            return fastify.mailer.sendMail({
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: "Organization Activation",
+                text: `Your organization ${orgName} has been activated.  You should receive an email with your login credentials shortly.`,
+            });
+        },
+        organizationDeactivationEmail: async (email: string, orgName: string) => {
+            return fastify.mailer.sendMail({
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: "Organization Deactivation",
+                text: `Your organization ${orgName} has been deactivated.`,
+            });
+        }
     });
 };
 
@@ -58,7 +74,9 @@ declare module 'fastify' {
   interface FastifyInstance {
     mailer: Transporter;
     services: {
-      sendTemporaryPass(email: string, tempPW: string): Promise<any>;
+      emailTemporaryPassword(email: string, tempPW: string): Promise<any>;
+      organizationActivationEmail(email: string, orgName: string): Promise<any>;
+      organizationDeactivationEmail(email: string, orgName: string): Promise<any>;
     };
   }
 }

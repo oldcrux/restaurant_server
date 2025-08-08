@@ -29,7 +29,7 @@ export async function createUserInSuperTokens(emailId: string, fastify: FastifyI
         //     text: `Your temp password: ${password}`
         // })
         
-        const info = await fastify.services.sendTemporaryPass(emailId, password);
+        const info = await fastify.services.emailTemporaryPassword(emailId, password);
         console.log('email sent successfully', info);
     }
     else{

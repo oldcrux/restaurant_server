@@ -1,4 +1,4 @@
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count, inArray } from 'drizzle-orm';
 import { menuItems } from '../db/schema.js';
 import { FastifyInstance } from 'fastify';
 import { createId } from '@paralleldrive/cuid2';
@@ -32,7 +32,9 @@ export const MenuItemService = (fastify: FastifyInstance) => {
                 const whereConditions = [];
 
                 if (orgName) whereConditions.push(eq(menuItems.orgName, orgName));
-                if (storeName) whereConditions.push(eq(menuItems.storeName, storeName));
+                // if (storeName) whereConditions.push(eq(menuItems.storeName, storeName));
+                const stores = storeName ? [storeName, 'All'] : ['All'];
+                whereConditions.push(inArray(menuItems.storeName, stores));
 
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
