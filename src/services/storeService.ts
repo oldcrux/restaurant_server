@@ -45,7 +45,7 @@ export const StoreService = (fastify: FastifyInstance) => {
                         emailId: org.emailId,
                         firstName: 'Store',
                         lastName: 'Admin',
-                        userType: 'BOT', // BOT for trunk phone number
+                        userType: 'bot', // bot for trunk phone number
                         phoneNumber: storeData.trunkPhoneNumber,
                         createdBy: storeData.createdBy || 'system',
                         updatedBy: storeData.createdBy || 'system',
@@ -197,7 +197,7 @@ export const StoreService = (fastify: FastifyInstance) => {
                                 emailId: org.emailId,
                                 firstName: 'Store',
                                 lastName: 'Admin',
-                                userType: 'BOT', // BOT for trunk phone number
+                                userType: 'bot', // bot for trunk phone number
                                 phoneNumber: storeData.trunkPhoneNumber,
                                 address1: storeData.address1 || '',
                                 address2: storeData.address2 || '',

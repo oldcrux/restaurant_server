@@ -23,11 +23,11 @@ export const seedPermissions = [
 
 // Roles data
 export const seedRoles = [
-  { roleId: 'role_system', roleName: 'SYSTEM' },
-  { roleId: 'role_admin', roleName: 'ADMIN' },
-  { roleId: 'role_viewer', roleName: 'VIEWER' },
-  { roleId: 'role_manager', roleName: 'MANAGER' },
-  { roleId: 'role_staff', roleName: 'STAFF' },
+  { roleId: 'role_system', roleName: 'system' },
+  { roleId: 'role_admin', roleName: 'admin' },
+  { roleId: 'role_viewer', roleName: 'viewer' },
+  { roleId: 'role_manager', roleName: 'manager' },
+  { roleId: 'role_staff', roleName: 'staff' },
 ];
 
 // Role-Permissions mapping

@@ -101,7 +101,7 @@ export const UserService = (fastify: FastifyInstance) => {
                         createdBy: userData.createdBy ?? 'system',
                         updatedBy: userData.updatedBy ?? 'system',
                         isActive: userData.isActive ?? true,
-                        userType: userData.userType ?? 'HUMAN',
+                        userType: userData.userType ?? 'human',
                     }
 
                     // 1. Insert into users table
@@ -156,7 +156,7 @@ export const UserService = (fastify: FastifyInstance) => {
                     }
 
                     // 4. Create user in SuperTokens only for human users
-                    if (user.userType === 'HUMAN') {
+                    if (user.userType === 'human') {
                         await createUserInSuperTokens(user.userId, fastify);
                     }
 
@@ -237,7 +237,7 @@ export const UserService = (fastify: FastifyInstance) => {
         //         createdBy: userData.createdBy ?? 'system',
         //         updatedBy: userData.updatedBy ?? 'system',
         //         isActive: userData.isActive ?? true,
-        //         userType: userData.userType ?? 'HUMAN',
+        //         userType: userData.userType ?? 'human',
         //     };
 
         //     const [user] = await trx.insert(users).values(updatedUserData).returning();
@@ -280,7 +280,7 @@ export const UserService = (fastify: FastifyInstance) => {
         //         }
         //     }
 
-        //     if(user.userType === 'HUMAN') {
+        //     if(user.userType === 'human') {
         //     await createUserInSuperTokens(user.userId, fastify);
         // }
         //     return user;
@@ -531,7 +531,7 @@ export const UserService = (fastify: FastifyInstance) => {
                     phoneNumber: firstRow?.phoneNumber ? firstRow.phoneNumber : '',
                     isActive: firstRow?.userIsActive ? firstRow.userIsActive : false,
                     isDeleted: firstRow?.userIsDeleted ? firstRow.userIsDeleted : false,
-                    userType: firstRow?.userType ? firstRow.userType : 'HUMAN',
+                    userType: firstRow?.userType ? firstRow.userType : 'human',
                     password: firstRow?.password ? firstRow.password : '',
 
                     organization: {

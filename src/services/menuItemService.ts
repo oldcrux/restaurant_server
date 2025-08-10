@@ -31,10 +31,14 @@ export const MenuItemService = (fastify: FastifyInstance) => {
                 const skip = (page - 1) * limit;
                 const whereConditions = [];
 
+                if (!orgName && !storeName) {
+                    throw new Error('Both orgName and storeName must be provided');
+                }
                 if (orgName) whereConditions.push(eq(menuItems.orgName, orgName));
-                // if (storeName) whereConditions.push(eq(menuItems.storeName, storeName));
-                const stores = storeName ? [storeName, 'All'] : ['All'];
-                whereConditions.push(inArray(menuItems.storeName, stores));
+
+                if (storeName && storeName !== 'All') {
+                    whereConditions.push(eq(menuItems.storeName, storeName))
+                }
 
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 

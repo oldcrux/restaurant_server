@@ -93,11 +93,12 @@ export async function userRoutes(fastify: FastifyInstance) {
     reply.code(200).send({ success: true, message: 'User deleted successfully', data: result });
   });
 
-  // Example of updating access token payload to update the current store of the user
+  // Update access token payload to update the current store of the user and in the database
+  // POST /api/user/currentstore/update
   fastify.post("/currentstore/update", async (req: SessionRequest, reply) => {
     let session = req.session;
-    await session!.mergeIntoAccessTokenPayload({ newKey: "newValue" });
-    // res.json({ message: "successfully updated access token payload" });
+    await session!.mergeIntoAccessTokenPayload({ currentStore: req.body.storeName });
+    await userService.setUserCurrentStore(req.body.userId, req.body.orgName, req.body.storeName);
     reply.code(200).send({ success: true, message: 'Successfully updated user current store' });
   });
 }

@@ -110,15 +110,32 @@ export const supertokensConfig = (fastify: FastifyInstance) => {
                             createNewSession: async function (input) {
                                 const user = await userService.getUserByIdForSession(input.userId);
                                 console.log(`updating access token payload ${JSON.stringify(input.userId)}`);
-                                
-                                if(!user){
+
+                                if (!user) {
                                     throw new Error(`User ${input.userId} not found`);
                                 }
-                                else if(user && user.organization && !user.organization.isActive) {
+                                else if (user && user.organization && !user.organization.isActive) {
                                     throw new Error(`Organization ${user.organization.orgName} is not active`);
                                 }
-                                // TODO add the check for users current store.
-                                else if(user && !user.isActive) {
+                                // else if (user && Array.isArray(user.storeRoles)) {
+                                //     let currentStoreFound = false;
+
+                                //     for (const store of user.storeRoles) {
+                                //         if (store.isCurrentStore) {
+                                //             currentStoreFound = true;
+                                //             if (!store.isActive) {
+                                //                 throw new Error(`User's current store (${store.storeName}) is not active`);
+                                //             }
+                                //             break; // ✅ Found current store and it’s active — proceed
+                                //         }
+                                //     }
+
+                                //     if (!currentStoreFound) {
+                                //         throw new Error(`No current store found for user ${user.userId}`);
+                                //     }
+                                // }
+
+                                else if (user && !user.isActive) {
                                     throw new Error(`User ${user.userId} is not active`);
                                 }
 

@@ -119,7 +119,7 @@ export const users = pgTable("users", {
 	zip: text().notNull(),
 	country: text().notNull(),
 	// authType: text("auth_type").notNull(),
-	userType: text("user_type").notNull().default('HUMAN'), // HUMAN, BOT
+	userType: text("user_type").notNull().default('human'), // human, bot
 	password: text(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
@@ -163,9 +163,11 @@ export const menuItems = pgTable("menu_items", {
 
 export const bookings = pgTable('bookings', {
 	id: text().primaryKey().notNull(),
+	orgName: text("org_name").notNull(),
+	storeName: text("store_name").notNull(),
 	customerName: text('customer_name').notNull(),
 	customerPhoneNumber: text('customer_phone_number').notNull(),
-	guests: integer('guests').notNull(),
+	guests_count: integer('guests_count').notNull(),
 	startTime: timestamp('start_time', { precision: 3, mode: 'string' }).notNull(),
 	endTime: timestamp('end_time', { precision: 3, mode: 'string' }).notNull(),
 	createdBy: text("created_by").notNull(),
