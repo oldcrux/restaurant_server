@@ -58,6 +58,7 @@ export const StoreService = (fastify: FastifyInstance) => {
                         ],
                     };
                     await userService.createUser(userData, storeData.orgName || '', tx as any);
+                    // TODO Transfer the trunk number to twilio
                 }
 
                 return store!;
@@ -216,6 +217,7 @@ export const StoreService = (fastify: FastifyInstance) => {
                                 ],
                             };
                             await userService.createUser(userData, storeData.orgName || '', tx as any);
+                            // TODO Transfer the trunk number to twilio
                         }
                     }
                     return store;
