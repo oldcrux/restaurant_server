@@ -97,7 +97,12 @@ export async function userRoutes(fastify: FastifyInstance) {
   // POST /api/user/currentstore/update
   fastify.post("/currentstore/update", async (req: SessionRequest, reply) => {
     let session = req.session;
-    await session!.mergeIntoAccessTokenPayload({ currentStore: req.body.storeName });
+    const payload = session?.getAccessTokenPayload().user;
+    const updatedUser = {
+      ...payload,
+      currentStore: req.body.storeName
+    };
+    await session!.mergeIntoAccessTokenPayload({ user: updatedUser });
     await userService.setUserCurrentStore(req.body.userId, req.body.orgName, req.body.storeName);
     reply.code(200).send({ success: true, message: 'Successfully updated user current store' });
   });
