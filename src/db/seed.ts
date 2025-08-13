@@ -15,6 +15,8 @@ export const seedPermissions = [
   { permissionId: 'store_write', permissionName: 'store_write' },
   { permissionId: 'order_read', permissionName: 'order_read' },
   { permissionId: 'order_write', permissionName: 'order_write' },
+  { permissionId: 'menu_create', permissionName: 'menu_create' },
+  { permissionId: 'menu_read', permissionName: 'menu_read' },
   { permissionId: 'user_read', permissionName: 'user_read' },
   { permissionId: 'user_write', permissionName: 'user_write' },
   { permissionId: 'appointment_read', permissionName: 'appointment_read' },
@@ -45,7 +47,9 @@ export const seedRolePermissions = [
   { roleId: 'role_admin', permissionId: 'user_write' },
   { roleId: 'role_admin', permissionId: 'appointment_read' },
   { roleId: 'role_admin', permissionId: 'appointment_write' },
-  
+  { roleId: 'role_admin', permissionId: 'menu_create' },
+  { roleId: 'role_admin', permissionId: 'menu_read' },
+
   // VIEWER has READ permissions
   { roleId: 'role_viewer', permissionId: 'store_read' },
   { roleId: 'role_viewer', permissionId: 'order_read' },
@@ -61,7 +65,9 @@ export const seedRolePermissions = [
   { roleId: 'role_store_manager', permissionId: 'user_write' },
   { roleId: 'role_store_manager', permissionId: 'appointment_read' },
   { roleId: 'role_store_manager', permissionId: 'appointment_write' },
-  
+  { roleId: 'role_store_manager', permissionId: 'menu_read' },
+  { roleId: 'role_store_manager', permissionId: 'menu_create' },
+
   // STAFF has READ permission
   { roleId: 'role_staff', permissionId: 'order_read' },
   { roleId: 'role_staff', permissionId: 'order_write' },
