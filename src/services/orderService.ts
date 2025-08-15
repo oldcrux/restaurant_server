@@ -49,6 +49,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                         ...detail,
                         id: createId(),
                         orderId: order?.id,
+                        status: OrderStatusConstant.CREATED,
                         createdBy: orderData.createdBy,
                         updatedBy: orderData.updatedBy,
                         createdAt: new Date().toISOString(),
@@ -278,6 +279,14 @@ export const OrderService = (fastify: FastifyInstance) => {
                         })
                         .where(eq(orders.id, updateData.id))
                         .returning();
+
+                    await tx.update(orderDetails)
+                        .set({
+                            status: OrderStatusConstant.DELIVERED,
+                            updatedBy: updateData.updatedBy,
+                            updatedAt: new Date().toISOString()
+                        })
+                        .where(eq(orderDetails.orderId, updateData.id));
                 });
                 return result;
             } catch (error: any) {
@@ -310,6 +319,7 @@ export const OrderService = (fastify: FastifyInstance) => {
             else if ([OrderStatusConstant.CREATED, OrderStatusConstant.CONFIRMED].includes(status as any)
                 && [OrderStatusConstant.PROCESSING, OrderStatusConstant.READY, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(existingOrder?.status as any)) {
                 throw new Error(`Current order status is ${existingOrder?.status}, cannot update to ${status}`);
+                // Order status cannot be moved back to CREATED or CONFIRMED if it has been PROCESSED or READY or DELIVERED or CANCELLED
             }
 
             try {
@@ -326,14 +336,115 @@ export const OrderService = (fastify: FastifyInstance) => {
                         .returning();
 
                     // Get order details
-                    const details = await tx
-                        .select()
-                        .from(orderDetails)
-                        .where(eq(orderDetails.orderId, id));
+                    // const details = await tx
+                    //     .select()
+                    //     .from(orderDetails)
+                    //     .where(eq(orderDetails.orderId, id));
+                    let details;
+                    if (OrderStatusConstant.CONFIRMED != status) {
+                        details = await tx.update(orderDetails)
+                            .set({
+                                status: status as any,
+                                updatedBy: updated_by,
+                                updatedAt: new Date().toISOString()
+                            })
+                            .where(eq(orderDetails.orderId, id));
+                    }
+                    else {
+                        details = await tx
+                            .select()
+                            .from(orderDetails)
+                            .where(eq(orderDetails.orderId, id));
+                    }
 
                     return {
                         ...updatedOrder,
                         orderDetails: details
+                    };
+                });
+
+                return result;
+            } catch (error: any) {
+                throw new Error(`Failed to update order status: ${error.message}`);
+            }
+        },
+
+        async updateOrderDetailStatus(id: string, orderId: string, status: string, updated_by: string) {
+            // Check if order exists and get current status
+            const existingOrderDetailResult = await db
+                .select()
+                .from(orderDetails)
+                .where(eq(orderDetails.id, id))
+                .limit(1);
+
+            if (existingOrderDetailResult.length === 0) {
+                throw new Error('Order detail not found');
+            }
+
+            const existingOrderDetail = existingOrderDetailResult[0];
+
+            if (![OrderStatusConstant.CREATED, OrderStatusConstant.PROCESSING, OrderStatusConstant.READY, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(status as any)) {
+                throw new Error(`Invalid order detail status: ${status}`);
+            }
+            // Validate status transitions
+            if (OrderStatusConstant.CANCELLED == status
+                && ![OrderStatusConstant.CREATED].includes(existingOrderDetail?.status as any)) {
+                throw new Error('Only order details in CREATED status can be cancelled');
+            }
+            else if ([OrderStatusConstant.CREATED].includes(status as any)
+                && [OrderStatusConstant.PROCESSING, OrderStatusConstant.READY, OrderStatusConstant.DELIVERED, OrderStatusConstant.CANCELLED].includes(existingOrderDetail?.status as any)) {
+                throw new Error(`Current order detail status is ${existingOrderDetail?.status}, cannot update to ${status}`);
+                // Order detail status cannot be moved back to CREATED if it has been PROCESSED or READY or DELIVERED or CANCELLED
+            }
+
+            try {
+                const result = await db.transaction(async (tx) => {
+                    // Update order detail status
+                    const [updatedOrderDetail] = await tx
+                        .update(orderDetails)
+                        .set({
+                            status: status as any,
+                            updatedBy: updated_by,
+                            updatedAt: new Date().toISOString()
+                        })
+                        .where(eq(orderDetails.id, id))
+                        .returning();
+
+                    const details = await tx
+                        .select()
+                        .from(orderDetails)
+                        .where(eq(orderDetails.orderId, orderId));
+
+                    const statuses = details.map(d => d.status);
+
+                    const uniqueStatuses = new Set(statuses);
+
+                    let newOrderStatus: string | null = null;
+
+                    if (uniqueStatuses.has('PROCESSING')) {
+                        newOrderStatus = 'PROCESSING';
+                    } else if ([...uniqueStatuses].every(s => ['CANCELLED', 'READY', 'DELIVERED'].includes(s))) {
+                        // Pick the most appropriate status based on priority
+                        if (uniqueStatuses.has('READY')) {
+                            newOrderStatus = 'READY';
+                        } else if (uniqueStatuses.has('DELIVERED')) {
+                            newOrderStatus = 'DELIVERED';
+                        } else if (uniqueStatuses.has('CANCELLED')) {
+                            newOrderStatus = 'CANCELLED';
+                        }
+                    }
+
+                    // Update the order if needed
+                    if (newOrderStatus) {
+                        await tx.update(orders).set({
+                            status: newOrderStatus as any,
+                            updatedBy: updated_by,
+                            updatedAt: new Date().toISOString()
+                        }).where(eq(orders.id, orderId));
+                    }
+
+                    return {
+                        updatedOrderDetail
                     };
                 });
 

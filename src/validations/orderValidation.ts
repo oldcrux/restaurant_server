@@ -73,8 +73,17 @@ export const idSchema = z.object({
   id: z.string(),
 });
 
-export const upadateStatusSchema = z.object({
+export const updateStatusSchema = z.object({
   id: z.string(),
+  status: z.enum(orderStatusValues, { message: 'Invalid order status' }),
+  updatedBy: z.string().optional(),
+});
+
+export const updateOrderDetailStatusSchema = z.object({
+  storeName: z.string().min(2, 'Store number is required'),
+  orgName: z.string().min(2, 'Organization name is required'),
+  id: z.string(),
+  orderId: z.string(),
   status: z.enum(orderStatusValues, { message: 'Invalid order status' }),
   updatedBy: z.string().optional(),
 });

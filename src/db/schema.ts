@@ -2,11 +2,13 @@ import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, uniqueI
 import { sql } from "drizzle-orm"
 
 export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'READY', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
+export const orderDetailStatus = pgEnum("OrderDetailStatus", ['CREATED', 'PROCESSING', 'READY', 'DELIVERED', 'CANCELLED'])
 
 
 export const orderDetails = pgTable("order_details", {
 	id: text().primaryKey().notNull(),
 	orderId: text("order_id").notNull(),
+	status: orderDetailStatus().default('CREATED').notNull(),
 	item: text().notNull(),
 	itemPrice: doublePrecision("item_price").notNull(),
 	quantity: integer().notNull(),

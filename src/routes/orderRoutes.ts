@@ -1,6 +1,6 @@
 import { validateBody, validateParams } from '../middleware/validation.js';
 import { OrderService } from '../services/orderService.js';
-import { createOrderSchema, updateOrderSchema, idSchema, upadateStatusSchema, updateOrderToDeliveredSchema } from '../validations/orderValidation.js';
+import { createOrderSchema, updateOrderSchema, idSchema, updateStatusSchema, updateOrderToDeliveredSchema, updateOrderDetailStatusSchema } from '../validations/orderValidation.js';
 import { FastifyInstance } from 'fastify';
 
 export async function orderRoutes(fastify: FastifyInstance) {
@@ -87,13 +87,21 @@ export async function orderRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/order/update/status
-  fastify.post('/update/status', { preHandler: validateBody(upadateStatusSchema) }, async (request, reply) => {
+  fastify.post('/update/status', { preHandler: validateBody(updateStatusSchema) }, async (request, reply) => {
     console.log('Updating order status with body:', request.body);
     const { id, status, updatedBy } = request.body as any;
     const order = await orderService.updateOrderStatus(id, status, updatedBy);
     reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
   });
 
+  // POST /api/order/update/orderDetail/status
+  fastify.post('/update/orderDetail/status', { preHandler: validateBody(updateOrderDetailStatusSchema) }, async (request, reply) => {
+    console.log('Updating order detail status with body:', request.body);
+    // const { id, status, updatedBy } = request.body as any;
+    // const order = await orderService.updateOrderDetailStatus(id, orderId, status, updatedBy);
+    // reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
+  });
+  
   // PUT /api/order/:id
   fastify.put('/:id', {
     preHandler: [
