@@ -21,6 +21,7 @@ export const StoreService = (fastify: FastifyInstance) => {
             // TODO : orgName should be validated before creating a store.
             // TODO : phone number, trunk phone number should be validated before creating a store.  Phone number is unique across all stores.
             // TODO : orgName + storeName should be unique
+            console.log('Creating store with data:', storeData);
             return await db.transaction(async (tx) => {
                 // TODO: Validate orgName, phone numbers, and uniqueness (outside or inside tx as needed)
                 const newStore: NewStore = {
@@ -66,11 +67,11 @@ export const StoreService = (fastify: FastifyInstance) => {
         },
 
         // Activate a store
-        async activateStore(orgName: string, storeName: string): Promise<Store> {
+        async activateStore(orgName: string, storeName: string, updatedBy: string): Promise<Store> {
             try {
                 const [store] = await db
                     .update(stores)
-                    .set({ isActive: true, updatedAt: new Date().toISOString() })
+                    .set({ isActive: true, updatedAt: new Date().toISOString(), updatedBy })
                     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, storeName)))
                     .returning();
 
@@ -82,11 +83,11 @@ export const StoreService = (fastify: FastifyInstance) => {
         },
 
         // Deactivate a store
-        async deactivateStore(orgName: string, storeName: string): Promise<Store> {
+        async deactivateStore(orgName: string, storeName: string, updatedBy: string): Promise<Store> {
             try {
                 const [store] = await db
                     .update(stores)
-                    .set({ isActive: false, updatedAt: new Date().toISOString() })
+                    .set({ isActive: false, updatedAt: new Date().toISOString(), updatedBy })
                     .where(and(eq(stores.orgName, orgName), eq(stores.storeName, storeName)))
                     .returning();
 
@@ -176,6 +177,7 @@ export const StoreService = (fastify: FastifyInstance) => {
             };
             console.log('Updating store with data:', updateData);
             // TODO : phone number should be validated.  Phone number is unique across all stores.
+            // TODO: validate the new store name. If already present, throw an error.
             return await db.transaction(async (tx) => {
                 try {
                     const [store] = await tx

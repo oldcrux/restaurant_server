@@ -1,4 +1,3 @@
-import { is } from 'drizzle-orm';
 import { z } from 'zod';
 
 const timeWithAbbreviationRegex = /^([01]\d|2[0-3]):[0-5]\d\s[A-Z]{2,5}$/;
@@ -38,6 +37,8 @@ export const createStoreSchema = z.object({
   zip: z.string().min(5, 'Zip code must be at least 5 characters long'),
   country: z.string().min(1, 'Country is required'),
   isActive: z.boolean().default(false),
+  createdBy: z.string().min(2, 'Created by is required'),
+  updatedBy: z.string().min(2, 'Updated by is required'),
 });
 
 export const updateStoreSchema = createStoreSchema.partial();

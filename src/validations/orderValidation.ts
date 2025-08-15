@@ -28,8 +28,8 @@ export const createOrderSchema = z.object({
   orgName: z.string().min(2, 'Organization name is required'),
   orderDetails: z.array(orderDetailSchema).min(1, 'At least one order detail is required'),
   notes: z.string().max(500, 'Notes must be less than 500 characters').optional(),
-  createdBy: z.string().optional(),
-  updatedBy: z.string().optional(),
+  createdBy: z.string().min(2, 'Created by is required'),
+  updatedBy: z.string().min(2, 'Updated by is required'),
 });
 
 export const updateOrderDetailSchema = z.object({

@@ -36,8 +36,8 @@ export const MenuItemService = (fastify: FastifyInstance) => {
                 }
                 if (orgName) whereConditions.push(eq(menuItems.orgName, orgName));
 
-                if (storeName && storeName !== 'All') {
-                    whereConditions.push(eq(menuItems.storeName, storeName))
+                if (storeName) {
+                    whereConditions.push(inArray(menuItems.storeName, [storeName, 'All']))
                 }
 
                 const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;

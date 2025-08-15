@@ -64,9 +64,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   fastify.post('/create', { preHandler: validateBody(createOrderSchema) }, async (request, reply) => {
     console.log('Creating order with body:', request.body);
     const body = request.body as any;
-    body.createdBy = body.createdBy?.trim() || "system";  // TODO: Replace with value from JWT
-    body.updatedBy = body.updatedBy?.trim() || "system"; // TODO: Replace with value from JWT
-
+    
     const order = await orderService.createOrder(body);
     reply.code(201).send({ success: true, message: 'Order created successfully', data: order });
   });
@@ -74,7 +72,6 @@ export async function orderRoutes(fastify: FastifyInstance) {
   // POST /api/order/update
   fastify.post('/update', { preHandler: validateBody(updateOrderSchema) }, async (request, reply) => {
     const body = request.body as any;
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
     const order = await orderService.updateOrder(body);
     reply.code(201).send({ success: true, message: 'Order updated successfully', data: order });
   });

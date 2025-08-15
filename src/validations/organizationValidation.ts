@@ -13,6 +13,8 @@ export const createOrganizationSchema = z.object({
   state: z.string().min(2, 'State must be at least 2 characters long'),
   zip: z.string().min(5, 'Zip code must be at least 5 characters long'),
   country: z.string().min(1, 'Country is required'),
+  createdBy: z.string().min(2, 'Created by is required'),
+  updatedBy: z.string().min(2, 'Updated by is required'),
 });
 
 export const updateOrganizationSchema = createOrganizationSchema.partial();

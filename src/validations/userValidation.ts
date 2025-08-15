@@ -17,8 +17,8 @@ export const createUserSchema = z.object({
   state: z.string().optional(),
   zip: z.string().optional(),
   country: z.string().optional(),
-  createdBy: z.string().optional(),
-  updatedBy: z.string().optional(),
+  createdBy: z.string().min(2, 'Created by is required'),
+  updatedBy: z.string().min(2, 'Updated by is required'),
   storeRoles: z.array(z.object({
     storeName: z.string().min(1, 'Store name is required'),
     roleIds: z.array(z.string()).optional(),

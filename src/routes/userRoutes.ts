@@ -56,16 +56,16 @@ export async function userRoutes(fastify: FastifyInstance) {
 
   // POST /api/user/activate - Activate user
   fastify.post('/activate', { preHandler: [validateQueryParams(userIdSchema)] }, async (request, reply) => {
-    const { userId, orgName, storeName } = request.query as { userId: string; orgName: string; storeName: string };
-    const user = await userService.activateUser(userId, orgName, storeName);
+    const { userId, orgName, storeName, updatedBy } = request.query as { userId: string; orgName: string; storeName: string, updatedBy: string };
+    const user = await userService.activateUser(userId, orgName, storeName, updatedBy);
     reply.code(200).send({ success: true, message: 'User activated successfully', data: user });
   });
 
   // POST /api/user/deactivate - Deactivate user
   fastify.post('/deactivate', { preHandler: [validateQueryParams(userIdSchema)] }, async (request, reply) => {
-    const { userId, orgName, storeName } = request.query as { userId: string; orgName: string; storeName: string };
+    const { userId, orgName, storeName, updatedBy } = request.query as { userId: string; orgName: string; storeName: string, updatedBy: string };
     console.log('deactivating user', userId);
-    const user = await userService.deactivateUser(userId, orgName, storeName);
+    const user = await userService.deactivateUser(userId, orgName, storeName, updatedBy);
     reply.code(200).send({ success: true, message: 'User deactivated successfully', data: user });
   });
 

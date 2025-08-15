@@ -47,8 +47,6 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   // POST /api/menu-items/create
   fastify.post('/create', { preHandler: validateBody(createMenuItemSchema) }, async (request, reply) => {
     const body = request.body as any;
-    body.createdBy = "system"; // TODO: Replace with value from JWT
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
 
     console.log(`creating menu item: ${JSON.stringify(body)}`, body);
     const item = await menuItemService.createMenuItem(body);
@@ -58,7 +56,6 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   // POST /api/menu-items/update
   fastify.post('/update', { preHandler: validateBody(updateMenuItemSchema) }, async (request, reply) => {
     const body = request.body as any;
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
     console.log(`updating menu item: ${JSON.stringify(body)}`, body);
     const item = await menuItemService.updateMenuItem(body);
     reply.code(201).send({ success: true, message: 'Menu item updated successfully', data: item });

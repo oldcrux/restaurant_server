@@ -44,24 +44,20 @@ export async function organizationRoutes(fastify: FastifyInstance) {
       body.createdBy = user.userId;
       body.updatedBy = user.userId;
     }
-    // body.createdBy = 'system'; // for postman API testing
-    // body.updatedBy = 'system';
-
+    
     console.log('body in organizationRoutes.ts', body);
     const organization = await organizationService.createOrganization(body);
     reply.code(201).send({ success: true, message: 'Organization created successfully', data: organization });
   });
 
   fastify.post('/activate', { preHandler: validateQueryParams(orgNameSchema) }, async (request, reply) => {
-    const updatedBy = "system"; // TODO: Replace with value from JWT
-    const { orgName } = request.query as { orgName: string; };
+    const { orgName, updatedBy } = request.query as { orgName: string; updatedBy: string; };
     await organizationService.activateOrganization(orgName, updatedBy);
     reply.code(201).send({ success: true, message: 'Organization activated successfully', data: orgName });
   });
 
   fastify.post('/deactivate', { preHandler: validateQueryParams(orgNameSchema) }, async (request, reply) => {
-    const updatedBy = "system"; // TODO: Replace with value from JWT
-    const { orgName } = request.query as { orgName: string; };
+    const { orgName, updatedBy } = request.query as { orgName: string; updatedBy: string; };
     await organizationService.deactivateOrganization(orgName, updatedBy);
     reply.code(201).send({ success: true, message: 'Organization deactivated successfully', data: orgName });
   });

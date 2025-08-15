@@ -731,12 +731,12 @@ export const UserService = (fastify: FastifyInstance) => {
         },
 
         // Activate user
-        async activateUser(userId: string, orgName: string, storeName: string): Promise<User> {
+        async activateUser(userId: string, orgName: string, storeName: string, updatedBy: string): Promise<User> {
             void orgName;
             void storeName;
             try {
                 const [user] = await db.update(users)
-                    .set({ isActive: true })
+                    .set({ isActive: true, updatedBy })
                     .where(and(
                         eq(users.userId, userId),
                         // eq(users.orgName, orgName),
@@ -753,13 +753,14 @@ export const UserService = (fastify: FastifyInstance) => {
         // Deactivate user
         async deactivateUser(userId: string,
             orgName: string,
-            storeName: string
+            storeName: string,
+            updatedBy: string
         ): Promise<User> {
             void orgName;
             void storeName;
             try {
                 const [user] = await db.update(users)
-                    .set({ isActive: false })
+                    .set({ isActive: false, updatedBy })
                     .where(and(
                         eq(users.userId, userId),
                         // eq(users.orgName, orgName),

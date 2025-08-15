@@ -43,23 +43,22 @@ export async function storeRoutes(fastify: FastifyInstance) {
   // POST /api/store/create - Create new store
   fastify.post('/create', { preHandler: validateBody(createStoreSchema) }, async (request, reply) => {
     const body = request.body as any;
-    body.createdBy = "system"; // TODO: Replace with value from JWT
-    body.updatedBy = "system"; // TODO: Replace with value from JWT
+    body.updatedBy = body.createdBy;
     const store = await storeService.createStore(body);
     reply.code(201).send({ success: true, message: 'Store created successfully', data: store });
   });
 
   // POST /api/store/activate - Activate store
   fastify.post('/activate', { preHandler: validateQueryParams(storeOrgNameSchema) }, async (request, reply) => {
-    const { orgName, storeName } = request.query as { orgName: string; storeName: string };
-    const store = await storeService.activateStore(orgName, storeName);
+    const { orgName, storeName, updatedBy } = request.query as { orgName: string; storeName: string, updatedBy: string };
+    const store = await storeService.activateStore(orgName, storeName, updatedBy);
     reply.code(201).send({ success: true, message: 'Store activated successfully', data: store });
   });
 
   // POST /api/store/deactivate - Deactivate store
   fastify.post('/deactivate', { preHandler: validateQueryParams(storeOrgNameSchema) }, async (request, reply) => {
-    const { orgName, storeName } = request.query as { orgName: string; storeName: string };
-    const store = await storeService.deactivateStore(orgName, storeName);
+    const { orgName, storeName, updatedBy } = request.query as { orgName: string; storeName: string, updatedBy: string };
+    const store = await storeService.deactivateStore(orgName, storeName, updatedBy);
     reply.code(201).send({ success: true, message: 'Store deactivated successfully', data: store });
   });
 
