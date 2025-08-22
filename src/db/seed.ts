@@ -10,7 +10,7 @@ const ADMIN_USER_ID = 'system-admin';
 // Permissions data
 export const seedPermissions = [
   { permissionId: 'perm_all', permissionName: 'all' },
-  { permissionId: 'store_create', permissionName: 'store_create' },
+  { permissionId: 'org_admin', permissionName: 'org_admin' },
   { permissionId: 'store_read', permissionName: 'store_read' },
   { permissionId: 'store_write', permissionName: 'store_write' },
   { permissionId: 'order_read', permissionName: 'order_read' },
@@ -38,7 +38,7 @@ export const seedRolePermissions = [
   { roleId: 'role_system', permissionId: 'perm_all' },
   
   // ADMIN has READ and WRITE permissions for all
-  { roleId: 'role_admin', permissionId: 'store_create' },
+  { roleId: 'role_admin', permissionId: 'org_admin' },
   { roleId: 'role_admin', permissionId: 'store_read' },
   { roleId: 'role_admin', permissionId: 'store_write' },
   { roleId: 'role_admin', permissionId: 'order_read' },

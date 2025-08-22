@@ -1,4 +1,4 @@
-import { eq, and, desc, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, count, inArray, sql } from 'drizzle-orm';
 import { menuItems } from '../db/schema.js';
 import { FastifyInstance } from 'fastify';
 import { createId } from '@paralleldrive/cuid2';
@@ -8,22 +8,54 @@ export const MenuItemService = (fastify: FastifyInstance) => {
 
     return {
         async createMenuItem(itemData: any) {
-            try {
-                const [createdItem] = await db
-                    .insert(menuItems)
-                    .values({
+            console.log(`menuItemService.ts: creating menu item: ${JSON.stringify(itemData)}`, itemData);
+            if (!itemData) {
+                throw new Error('Menu item data is required');
+            }
+            if (!itemData.storeName && (!itemData.selectedStores || itemData.selectedStores.length === 0)) {
+                console.log(`menuItemService.ts: creating menu item for all existing and future stores`);
+                itemData.storeName = 'All';
+
+                try {
+                    const [createdItem] = await db
+                        .insert(menuItems)
+                        .values({
+                            ...itemData,
+                            id: createId(),
+                            customizable: itemData.customizable ?? false,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        })
+                        .returning();
+
+                    return createdItem;
+                } catch (error: any) {
+                    throw new Error(`Failed to create menu item: ${error.message}`);
+                }
+            }
+            else {
+                // If selectedStores exist and length > 0, insert one item per store
+                try {
+                    const itemsToInsert = itemData.selectedStores.map((storeName: string) => ({
                         ...itemData,
+                        storeName,
                         id: createId(),
                         customizable: itemData.customizable ?? false,
                         createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                    })
-                    .returning();
+                        updatedAt: new Date().toISOString(),
+                    }));
 
-                return createdItem;
-            } catch (error: any) {
-                throw new Error(`Failed to create menu item: ${error.message}`);
+                    const createdItems = await db
+                        .insert(menuItems)
+                        .values(itemsToInsert)
+                        .returning();
+
+                    return createdItems;
+                } catch (error: any) {
+                    throw new Error(`Failed to create menu items: ${error.message}`);
+                }
             }
+
         },
 
         async getAllMenuItems(page = 1, limit = 10, orgName?: string, storeName?: string) {
@@ -90,24 +122,43 @@ export const MenuItemService = (fastify: FastifyInstance) => {
         },
 
         async updateMenuItem(updateData: any) {
-            try {
-                const [updatedItem] = await db
-                    .update(menuItems)
-                    .set({
-                        ...updateData,
-                        updatedAt: new Date().toISOString()
+            console.log(`menuItemService.ts: upserting menu items: ${JSON.stringify(updateData)}`, updateData);
+
+            return await db.transaction(async (tx) => {
+                const now = new Date().toISOString();
+
+                const newItems = updateData.selectedStores.map((storeName: string) => ({
+                    id: createId(),
+                    orgName: updateData.orgName,
+                    storeName,
+                    itemName: updateData.itemName,
+                    itemDescription: updateData.itemDescription,
+                    itemPrice: updateData.itemPrice,
+                    itemComposition: updateData.itemComposition,
+                    customizable: updateData.customizable,
+                    createdBy: updateData.createdBy,
+                    updatedBy: updateData.updatedBy,
+                    createdAt: now,
+                    updatedAt: now,
+                }));
+
+                const insertedOrUpdated = await tx
+                    .insert(menuItems)
+                    .values(newItems)
+                    .onConflictDoUpdate({
+                        target: [menuItems.orgName, menuItems.storeName, menuItems.itemName],
+                        set: {
+                            itemDescription: sql`excluded.item_description`,
+                            itemPrice: sql`excluded.item_price`,
+                            itemComposition: sql`excluded.item_composition`,
+                            customizable: sql`excluded.customizable`,
+                            updatedBy: sql`excluded.updated_by`,
+                            updatedAt: sql`excluded.updated_at`,
+                        },
                     })
-                    .where(eq(menuItems.id, updateData.id))
                     .returning();
-
-                if (!updatedItem) {
-                    throw new Error('Menu item not found or update failed');
-                }
-
-                return updatedItem;
-            } catch (error: any) {
-                throw new Error(`Failed to update menu item: ${error.message}`);
-            }
+                return insertedOrUpdated;
+            });
         },
 
         async updateMenuItemById(id: string, updateData: any) {

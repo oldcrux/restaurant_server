@@ -16,9 +16,12 @@ type NewUser = InferInsertModel<typeof users> & { storeRoles?: storeRoles[] };
 
 type StoreRoleForSession = {
     storeName: string;
-    roleIds: string[];
-    isActive: boolean; // from stores.isActive
-    isCurrentStore: boolean; // from storeUsers.isCurrentStore
+    isActive: boolean;
+    isCurrentStore: boolean;
+    roles: {
+        roleId: string;
+        permissions: string[];
+    }[];
 };
 
 type OrganizationForSession = {
@@ -481,39 +484,156 @@ export const UserService = (fastify: FastifyInstance) => {
             }
         },
 
+        // async getUserByIdForSession(userId: string): Promise<UserDataForSession> {
+        //     try {
+        //         const results = await db.select({
+        //             userId: users.userId,
+        //             firstName: users.firstName,
+        //             lastName: users.lastName,
+        //             emailId: users.emailId,
+        //             phoneNumber: users.phoneNumber,
+        //             userIsActive: users.isActive,
+        //             userIsDeleted: users.isDeleted,
+        //             userType: users.userType,
+        //             password: users.password,
+
+        //             orgName: organizations.orgName,
+        //             orgIsActive: organizations.isActive,
+
+        //             storeName: userRoles.storeName,
+        //             storeIsActive: stores.isActive,
+
+        //             roleId: userRoles.roleId,
+        //             permissionId: rolePermissions.permissionId,
+
+        //             isCurrentStore: storeUsers.isCurrentStore,  // from storeUsers join
+        //         })
+        //             .from(users)
+        //             .leftJoin(userRoles, eq(users.userId, userRoles.userId))  // LEFT JOIN for possible no roles
+        //             .leftJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
+        //             .innerJoin(organizations, eq(organizations.orgName, userRoles.orgName))  // org probably mandatory? If not, make LEFT JOIN
+        //             .leftJoin(stores, and(eq(stores.orgName, userRoles.orgName), eq(stores.storeName, userRoles.storeName)))
+        //             .leftJoin(storeUsers, and(
+        //                 eq(storeUsers.orgName, userRoles.orgName),
+        //                 eq(storeUsers.storeName, userRoles.storeName),
+        //             ))  // LEFT JOIN storeUsers to get isCurrentStore, if any
+        //             .where(eq(users.userId, userId))
+        //             .limit(100);
+
+        //         if (!results || results.length === 0) {
+        //             throw new Error('User not found');
+        //         }
+
+        //         const firstRow = results[0];
+
+        //         const userData: UserDataForSession = {
+        //             userId: firstRow?.userId ? firstRow.userId : '',
+        //             firstName: firstRow?.firstName ? firstRow.firstName : '',
+        //             lastName: firstRow?.lastName ? firstRow.lastName : '',
+        //             emailId: firstRow?.emailId ? firstRow.emailId : '',
+        //             phoneNumber: firstRow?.phoneNumber ? firstRow.phoneNumber : '',
+        //             isActive: firstRow?.userIsActive ? firstRow.userIsActive : false,
+        //             isDeleted: firstRow?.userIsDeleted ? firstRow.userIsDeleted : false,
+        //             userType: firstRow?.userType ? firstRow.userType : 'human',
+        //             password: firstRow?.password ? firstRow.password : '',
+
+        //             organization: {
+        //                 orgName: firstRow?.orgName ? firstRow.orgName : '',
+        //                 isActive: firstRow?.orgIsActive ? firstRow.orgIsActive : false,
+        //             },
+        //             currentStore: 'All',
+
+        //             storeRoles: [],
+
+        //             roles: [],
+        //             permissions: [],
+        //         };
+
+        //         const storeRolesMap = new Map<string, StoreRoleForSession>();
+
+        //         for (const row of results) {
+        //             // Roles and permissions
+        //             if (row.roleId && !userData.roles.includes(row.roleId)) {
+        //                 userData.roles.push(row.roleId);
+        //             }
+        //             if (row.permissionId && !userData.permissions.includes(row.permissionId)) {
+        //                 userData.permissions.push(row.permissionId);
+        //             }
+        //             if (row.isCurrentStore || row.storeName === 'All') {
+        //                 userData.currentStore = row.storeName ? row.storeName : 'All';
+        //             }
+        //             // Store grouping, include isCurrentStore (default false if null/undefined)
+        //             const storeKey = row.storeName || 'All';
+
+        //             if (!storeRolesMap.has(storeKey)) {
+        //                 storeRolesMap.set(storeKey, {
+        //                     storeName: storeKey,
+        //                     roleIds: [],
+        //                     isActive: row.storeIsActive ? true : false,
+        //                     isCurrentStore: row.isCurrentStore ?? false,
+        //                 });
+        //             }
+
+        //             const storeRoleEntry = storeRolesMap.get(storeKey)!;
+
+        //             if (row.roleId && !storeRoleEntry.roleIds.includes(row.roleId)) {
+        //                 storeRoleEntry.roleIds.push(row.roleId);
+        //             }
+
+        //             // If any row has isCurrentStore = true, keep it true (because user can have multiple rows)
+        //             if (row.isCurrentStore) {
+        //                 storeRoleEntry.isCurrentStore = true;
+        //             }
+        //         }
+        //         userData.storeRoles = Array.from(storeRolesMap.values());
+        //         return userData;
+        //     } catch (error: any) {
+        //         throw new Error(`Failed to fetch user: ${error.message}`);
+        //     }
+        // },
         async getUserByIdForSession(userId: string): Promise<UserDataForSession> {
             try {
-                const results = await db.select({
-                    userId: users.userId,
-                    firstName: users.firstName,
-                    lastName: users.lastName,
-                    emailId: users.emailId,
-                    phoneNumber: users.phoneNumber,
-                    userIsActive: users.isActive,
-                    userIsDeleted: users.isDeleted,
-                    userType: users.userType,
-                    password: users.password,
+                const results = await db
+                    .select({
+                        userId: users.userId,
+                        firstName: users.firstName,
+                        lastName: users.lastName,
+                        emailId: users.emailId,
+                        phoneNumber: users.phoneNumber,
+                        userIsActive: users.isActive,
+                        userIsDeleted: users.isDeleted,
+                        userType: users.userType,
+                        password: users.password,
 
-                    orgName: organizations.orgName,
-                    orgIsActive: organizations.isActive,
+                        orgName: organizations.orgName,
+                        orgIsActive: organizations.isActive,
 
-                    storeName: userRoles.storeName,
-                    storeIsActive: stores.isActive,
+                        storeName: userRoles.storeName,
+                        storeIsActive: stores.isActive,
 
-                    roleId: userRoles.roleId,
-                    permissionId: rolePermissions.permissionId,
+                        roleId: userRoles.roleId,
+                        permissionId: rolePermissions.permissionId,
 
-                    isCurrentStore: storeUsers.isCurrentStore,  // from storeUsers join
-                })
+                        isCurrentStore: storeUsers.isCurrentStore,
+                    })
                     .from(users)
-                    .leftJoin(userRoles, eq(users.userId, userRoles.userId))  // LEFT JOIN for possible no roles
+                    .leftJoin(userRoles, eq(users.userId, userRoles.userId))
                     .leftJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
-                    .innerJoin(organizations, eq(organizations.orgName, userRoles.orgName))  // org probably mandatory? If not, make LEFT JOIN
-                    .leftJoin(stores, and(eq(stores.orgName, userRoles.orgName), eq(stores.storeName, userRoles.storeName)))
-                    .leftJoin(storeUsers, and(
-                        eq(storeUsers.orgName, userRoles.orgName),
-                        eq(storeUsers.storeName, userRoles.storeName),
-                    ))  // LEFT JOIN storeUsers to get isCurrentStore, if any
+                    .innerJoin(organizations, eq(organizations.orgName, userRoles.orgName))
+                    .leftJoin(
+                        stores,
+                        and(
+                            eq(stores.orgName, userRoles.orgName),
+                            eq(stores.storeName, userRoles.storeName)
+                        )
+                    )
+                    .leftJoin(
+                        storeUsers,
+                        and(
+                            eq(storeUsers.orgName, userRoles.orgName),
+                            eq(storeUsers.storeName, userRoles.storeName)
+                        )
+                    )
                     .where(eq(users.userId, userId))
                     .limit(100);
 
@@ -524,70 +644,103 @@ export const UserService = (fastify: FastifyInstance) => {
                 const firstRow = results[0];
 
                 const userData: UserDataForSession = {
-                    userId: firstRow?.userId ? firstRow.userId : '',
-                    firstName: firstRow?.firstName ? firstRow.firstName : '',
-                    lastName: firstRow?.lastName ? firstRow.lastName : '',
-                    emailId: firstRow?.emailId ? firstRow.emailId : '',
-                    phoneNumber: firstRow?.phoneNumber ? firstRow.phoneNumber : '',
-                    isActive: firstRow?.userIsActive ? firstRow.userIsActive : false,
-                    isDeleted: firstRow?.userIsDeleted ? firstRow.userIsDeleted : false,
-                    userType: firstRow?.userType ? firstRow.userType : 'human',
-                    password: firstRow?.password ? firstRow.password : '',
+                    userId: firstRow?.userId ?? '',
+                    firstName: firstRow?.firstName ?? '',
+                    lastName: firstRow?.lastName ?? '',
+                    emailId: firstRow?.emailId ?? '',
+                    phoneNumber: firstRow?.phoneNumber ?? '',
+                    isActive: firstRow?.userIsActive ?? false,
+                    isDeleted: firstRow?.userIsDeleted ?? false,
+                    userType: firstRow?.userType ?? 'human',
+                    password: firstRow?.password ?? '',
 
                     organization: {
-                        orgName: firstRow?.orgName ? firstRow.orgName : '',
-                        isActive: firstRow?.orgIsActive ? firstRow.orgIsActive : false,
+                        orgName: firstRow?.orgName ?? '',
+                        isActive: firstRow?.orgIsActive ?? false,
                     },
                     currentStore: 'All',
-
                     storeRoles: [],
-
                     roles: [],
                     permissions: [],
                 };
 
+                // Map store -> StoreRoleForSession
                 const storeRolesMap = new Map<string, StoreRoleForSession>();
 
+                // To help with overall unique roles/permissions
+                const globalRoleSet = new Set<string>();
+                const globalPermissionSet = new Set<string>();
+
+                // Helper map to track roles inside each store (to prevent duplicates)
+                const storeRoleTrackers = new Map<string, Map<string, Set<string>>>(); // storeName -> roleId -> permissionIds
+
                 for (const row of results) {
-                    // Roles and permissions
-                    if (row.roleId && !userData.roles.includes(row.roleId)) {
-                        userData.roles.push(row.roleId);
-                    }
-                    if (row.permissionId && !userData.permissions.includes(row.permissionId)) {
-                        userData.permissions.push(row.permissionId);
-                    }
-                    if (row.isCurrentStore || row.storeName === 'All') {
-                        userData.currentStore = row.storeName ? row.storeName : 'All';
-                    }
-                    // Store grouping, include isCurrentStore (default false if null/undefined)
-                    const storeKey = row.storeName || 'All';
+                    const storeKey = row.storeName ?? 'All';
+                    const roleId = row.roleId;
+                    const permissionId = row.permissionId;
 
                     if (!storeRolesMap.has(storeKey)) {
                         storeRolesMap.set(storeKey, {
                             storeName: storeKey,
-                            roleIds: [],
-                            isActive: row.storeIsActive ? true : false,
+                            isActive: row.storeIsActive ?? false,
                             isCurrentStore: row.isCurrentStore ?? false,
+                            roles: [],
                         });
+
+                        storeRoleTrackers.set(storeKey, new Map());
                     }
 
-                    const storeRoleEntry = storeRolesMap.get(storeKey)!;
+                    const storeEntry = storeRolesMap.get(storeKey)!;
+                    const roleTracker = storeRoleTrackers.get(storeKey)!;
 
-                    if (row.roleId && !storeRoleEntry.roleIds.includes(row.roleId)) {
-                        storeRoleEntry.roleIds.push(row.roleId);
+                    // Set current store
+                    if (row.isCurrentStore || row.storeName === 'All') {
+                        userData.currentStore = storeKey;
+                        storeEntry.isCurrentStore = true;
                     }
 
-                    // If any row has isCurrentStore = true, keep it true (because user can have multiple rows)
-                    if (row.isCurrentStore) {
-                        storeRoleEntry.isCurrentStore = true;
+                    if (roleId) {
+                        globalRoleSet.add(roleId);
+
+                        // Check if this role already exists in the store
+                        let permissionsSet = roleTracker.get(roleId);
+                        if (!permissionsSet) {
+                            permissionsSet = new Set();
+                            roleTracker.set(roleId, permissionsSet);
+
+                            storeEntry.roles.push({
+                                roleId,
+                                permissions: [],
+                            });
+                        }
+
+                        if (permissionId) {
+                            globalPermissionSet.add(permissionId);
+                            permissionsSet.add(permissionId);
+                        }
                     }
                 }
+
+                // Finalize: assign collected permission sets to store roles
+                for (const [storeName, roleTracker] of storeRoleTrackers.entries()) {
+                    const storeEntry = storeRolesMap.get(storeName)!;
+
+                    for (const role of storeEntry.roles) {
+                        const perms = roleTracker.get(role.roleId);
+                        role.permissions = perms ? Array.from(perms) : [];
+                    }
+                }
+
                 userData.storeRoles = Array.from(storeRolesMap.values());
+                userData.roles = Array.from(globalRoleSet);
+                userData.permissions = Array.from(globalPermissionSet);
+
                 return userData;
             } catch (error: any) {
                 throw new Error(`Failed to fetch user: ${error.message}`);
             }
         },
+
 
         // Update user
         async updateUser(

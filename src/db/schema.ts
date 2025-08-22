@@ -131,8 +131,8 @@ export const users = pgTable("users", {
 	// storeName: text("store_name").notNull(),
 }, (table) => [
 	// uniqueIndex("users_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
-	uniqueIndex("users_user_id_org_name_store_name_key").using("btree", table.userId.asc().nullsLast().op("text_ops"), 
-	// table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")
+	uniqueIndex("users_user_id_org_name_store_name_key").using("btree", table.userId.asc().nullsLast().op("text_ops"),
+		// table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")
 	),
 ]);
 
@@ -161,7 +161,9 @@ export const menuItems = pgTable("menu_items", {
 	updatedBy: text("updated_by").notNull(),
 	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
-});
+}, (table) => [
+	uniqueIndex("menu_items_org_name_store_name_item_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops"), table.itemName.asc().nullsLast().op("text_ops")),
+]);
 
 export const bookings = pgTable('bookings', {
 	id: text().primaryKey().notNull(),

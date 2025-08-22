@@ -1,5 +1,5 @@
 import { formatISO, startOfDay, endOfDay } from 'date-fns';
-import { eq, and, count, desc, inArray, gte, lte } from 'drizzle-orm';
+import { eq, and, count, desc, inArray, gte, lte, not } from 'drizzle-orm';
 import { orders, orderDetails } from '../db/schema.js';
 import { OrderStatusConstant } from '../validations/orderValidation.js';
 import { FastifyInstance } from 'fastify';
@@ -161,7 +161,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                 const existingDetails = await db
                     .select()
                     .from(orderDetails)
-                    .where(eq(orderDetails.orderId, id));
+                    .where(and(eq(orderDetails.orderId, id), not(eq(orderDetails.status, OrderStatusConstant.CANCELLED))));
 
                 const incomingDetails = updateData.orderDetails || [];
 

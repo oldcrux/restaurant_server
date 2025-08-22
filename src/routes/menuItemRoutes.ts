@@ -48,7 +48,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   fastify.post('/create', { preHandler: validateBody(createMenuItemSchema) }, async (request, reply) => {
     const body = request.body as any;
 
-    console.log(`creating menu item: ${JSON.stringify(body)}`, body);
+    // console.log(`menuItemRoutes.ts: creating menu item: ${JSON.stringify(body)}`, body);
     const item = await menuItemService.createMenuItem(body);
     reply.code(201).send({ success: true, message: 'Menu item created successfully', data: item });
   });
@@ -56,7 +56,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   // POST /api/menu-items/update
   fastify.post('/update', { preHandler: validateBody(updateMenuItemSchema) }, async (request, reply) => {
     const body = request.body as any;
-    console.log(`updating menu item: ${JSON.stringify(body)}`, body);
+    // console.log(`updating menu item: ${JSON.stringify(body)}`, body);
     const item = await menuItemService.updateMenuItem(body);
     reply.code(201).send({ success: true, message: 'Menu item updated successfully', data: item });
   });
