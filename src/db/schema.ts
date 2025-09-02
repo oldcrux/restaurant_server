@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, uniqueIndex, boolean, varchar, pgEnum, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, integer, text, doublePrecision, timestamp, uniqueIndex, boolean, pgEnum, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const orderStatus = pgEnum("OrderStatus", ['CREATED', 'CONFIRMED', 'PROCESSING', 'READY', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
@@ -32,8 +32,8 @@ export const orders = pgTable("orders", {
 	totalCost: doublePrecision("total_cost").notNull(),
 	totalDiscount: doublePrecision("total_discount").default(0).notNull(),
 	status: orderStatus().default('CREATED').notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
 	orgName: text("org_name").notNull(),
@@ -165,21 +165,6 @@ export const menuItems = pgTable("menu_items", {
 	uniqueIndex("menu_items_org_name_store_name_item_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops"), table.itemName.asc().nullsLast().op("text_ops")),
 ]);
 
-export const bookings = pgTable('bookings', {
-	id: text().primaryKey().notNull(),
-	orgName: text("org_name").notNull(),
-	storeName: text("store_name").notNull(),
-	customerName: text('customer_name').notNull(),
-	customerPhoneNumber: text('customer_phone_number').notNull(),
-	guests_count: integer('guests_count').notNull(),
-	startTime: timestamp('start_time', { precision: 3, mode: 'string' }).notNull(),
-	endTime: timestamp('end_time', { precision: 3, mode: 'string' }).notNull(),
-	createdBy: text("created_by").notNull(),
-	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
-});
-
 export const permissions = pgTable('permissions', {
 	permissionId: text("permission_id").primaryKey().notNull(),
 	permissionName: text("permission_name").notNull(),
@@ -219,13 +204,53 @@ export const userRoles = pgTable('user_roles', {
 	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
 });
 
-export const prismaMigrations = pgTable("_prisma_migrations", {
-	id: varchar({ length: 36 }).primaryKey().notNull(),
-	checksum: varchar({ length: 64 }).notNull(),
-	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
-	migrationName: varchar("migration_name", { length: 255 }).notNull(),
-	logs: text(),
-	rolledBackAt: timestamp("rolled_back_at", { withTimezone: true, mode: 'string' }),
-	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	appliedStepsCount: integer("applied_steps_count").default(0).notNull(),
+export const bookings = pgTable('bookings', {
+  id: text().primaryKey().notNull(),
+  orgName: text("org_name").notNull(),
+  storeName: text("store_name").notNull(),
+  customerName: text('customer_name').notNull(),
+  customerPhoneNumber: text('customer_phone_number').notNull(),
+  guestsCount: integer('guests_count').notNull(),
+  startTime: timestamp('start_time', { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
+  endTime: timestamp('end_time', { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
+  status: text('status').default('booked').notNull(),
+  noShowAt: timestamp('no_show_at', { precision: 3, withTimezone: true, mode: 'string' })
 });
+
+export const slotReservations = pgTable('slot_reservations', {
+  id: text().primaryKey().notNull(),
+  orgName: text('org_name').notNull(),
+  storeName: text('store_name').notNull(),
+  slotStart: timestamp('slot_start', { precision: 3, mode: 'string' }).notNull(),
+  slotMinutes: integer('slot_minutes').default(30).notNull(),
+  reservedCount: integer('reserved_count').default(0).notNull(),
+  createdAt: timestamp('created_at', { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp('updated_at', { precision: 3, mode: 'string' }).notNull()
+}, (table) => ({
+  uniqueSlot: uniqueIndex('slot_unique_idx').on(table.orgName, table.storeName, table.slotStart, table.slotMinutes)
+}));
+
+export const slotReservationHistory = pgTable('slot_reservation_history', {
+  id: text().primaryKey().notNull(),
+  slotReservationId: text('slot_reservation_id'),
+  bookingId: text('booking_id'),
+  delta: integer('delta').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull()
+});
+
+// export const prismaMigrations = pgTable("_prisma_migrations", {
+// 	id: varchar({ length: 36 }).primaryKey().notNull(),
+// 	checksum: varchar({ length: 64 }).notNull(),
+// 	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
+// 	migrationName: varchar("migration_name", { length: 255 }).notNull(),
+// 	logs: text(),
+// 	rolledBackAt: timestamp("rolled_back_at", { withTimezone: true, mode: 'string' }),
+// 	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+// 	appliedStepsCount: integer("applied_steps_count").default(0).notNull(),
+// });

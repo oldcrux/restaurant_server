@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { organizations, rolePermissions, stores, storeUsers, userRoles, users } from '../db/schema.js';
-import { eq, and, count, desc, inArray } from 'drizzle-orm';
+import { eq, and, count, desc } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { createUserInSuperTokens } from '../auth/supertokens/supertokensService.js';
@@ -18,6 +18,7 @@ type StoreRoleForSession = {
     storeName: string;
     isActive: boolean;
     isCurrentStore: boolean;
+    timezone: string;
     roles: {
         roleId: string;
         permissions: string[];
@@ -610,6 +611,7 @@ export const UserService = (fastify: FastifyInstance) => {
 
                         storeName: userRoles.storeName,
                         storeIsActive: stores.isActive,
+                        timezone: stores.timezone,
 
                         roleId: userRoles.roleId,
                         permissionId: rolePermissions.permissionId,
@@ -683,6 +685,7 @@ export const UserService = (fastify: FastifyInstance) => {
                         storeRolesMap.set(storeKey, {
                             storeName: storeKey,
                             isActive: row.storeIsActive ?? false,
+                            timezone: row.timezone ?? 'UTC',
                             isCurrentStore: row.isCurrentStore ?? false,
                             roles: [],
                         });

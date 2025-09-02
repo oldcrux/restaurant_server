@@ -37,6 +37,9 @@ export const createStoreSchema = z.object({
   zip: z.string().min(5, 'Zip code must be at least 5 characters long'),
   country: z.string().min(1, 'Country is required'),
   isActive: z.boolean().default(false),
+  slotDurationMinutes: z.number().min(1, 'Slot duration must be at least 1 minute').optional(),
+  dineInCapacity: z.number().min(1, 'Dine-in capacity must be at least 1').optional(),
+  timezone: z.string().min(2, 'Timezone is required'),
   createdBy: z.string().min(2, 'Created by is required'),
   updatedBy: z.string().min(2, 'Updated by is required'),
 });
