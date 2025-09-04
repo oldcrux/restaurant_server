@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
+import { validateBody, validateRequestParams, validateQueryParams } from '../middleware/validation.js';
 import { createOrganizationSchema, updateOrganizationSchema, orgNameSchema } from '../validations/organizationValidation.js';
 import { OrganizationService } from '../services/organizationService.js';
 import { verifySession } from "supertokens-node/recipe/session/framework/fastify";
@@ -29,7 +29,7 @@ export async function organizationRoutes(fastify: FastifyInstance) {
     reply.code(201).send({ success: true, data: result });
   });
 
-  fastify.get('/:orgName', { preHandler: validateParams(orgNameSchema) }, async (request, reply) => {
+  fastify.get('/:orgName', { preHandler: validateRequestParams(orgNameSchema) }, async (request, reply) => {
     const { orgName } = request.params as { orgName: string; };
     const organization = await organizationService.getOrganizationById(orgName);
     reply.code(201).send({ success: true, data: organization });

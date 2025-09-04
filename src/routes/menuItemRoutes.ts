@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { MenuItemService } from '../services/menuItemService.js';
-import { validateBody, validateParams } from '../middleware/validation.js';
+import { validateBody, validateRequestParams } from '../middleware/validation.js';
 import {
   createMenuItemSchema,
   updateMenuItemSchema,
@@ -38,7 +38,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
 
 
   // GET /api/menu-items/:id
-  fastify.get('/:id', { preHandler: validateParams(idSchema) }, async (request, reply) => {
+  fastify.get('/:id', { preHandler: validateRequestParams(idSchema) }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const item = await menuItemService.getMenuItemById(id);
     reply.code(201).send({ success: true, data: item });
@@ -64,7 +64,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   // PUT /api/menu-items/:id
   fastify.put('/:id', {
     preHandler: [
-      validateParams(idSchema),
+      validateRequestParams(idSchema),
       validateBody(updateMenuItemSchema)
     ]
   }, async (request, reply) => {
@@ -75,7 +75,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   });
 
   // DELETE /api/menu-items/:menuItemName
-  fastify.delete('/:menuItemName', { preHandler: validateParams(idSchema) }, async (request, reply) => {
+  fastify.delete('/:menuItemName', { preHandler: validateRequestParams(idSchema) }, async (request, reply) => {
     const { menuItemName } = request.params as { menuItemName: string };
     const { orgName, storeName } = request.query as { orgName: string; storeName: string };
     const result = await menuItemService.deleteMenuItem(menuItemName, orgName, storeName);
@@ -83,7 +83,7 @@ export async function menuItemRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/menu-items/delete/:menuItemName
-  fastify.post('/delete/:menuItemName', { preHandler: validateParams(idSchema) }, async (request, reply) => {
+  fastify.post('/delete/:menuItemName', { preHandler: validateRequestParams(idSchema) }, async (request, reply) => {
     const { menuItemName } = request.params as { menuItemName: string };
     const { orgName, storeName } = request.query as { orgName: string; storeName: string };
     const result = await menuItemService.deleteMenuItem(menuItemName, orgName, storeName);

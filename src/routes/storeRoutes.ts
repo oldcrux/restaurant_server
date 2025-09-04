@@ -1,4 +1,4 @@
-import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
+import { validateBody, validateRequestParams, validateQueryParams } from '../middleware/validation.js';
 import { StoreService } from '../services/storeService.js';
 import { storeNameSchema, updateStoreSchema, createStoreSchema, storeOrgNameSchema, trunkPhoneNumberSchema } from '../validations/storeValidation.js';
 import { FastifyInstance } from 'fastify';
@@ -26,15 +26,15 @@ export async function storeRoutes(fastify: FastifyInstance) {
     reply.code(201).send({ success: true, data: result });
   });
 
-  // GET /api/store/:storeName - Get store by storeName
-  fastify.get('/:orgName/:storeName', { preHandler: validateParams(storeNameSchema) }, async (request, reply) => {
-    const { orgName, storeName } = request.params as { orgName: string, storeName: string };
-    const store = await storeService.getStoreByStoreNumber(orgName, storeName);
+  // GET /api/store/detail - Get store by storeName
+  fastify.get('/detail', { preHandler: validateQueryParams(storeNameSchema) }, async (request, reply) => {
+    const { orgName, storeName } = request.query as { orgName: string, storeName: string };
+    const store = await storeService.getStoreByStoreName(orgName, storeName);
     reply.code(201).send({ success: true, data: store });
   });
 
   // GET /api/store/:trunkPhoneNumber - Get store by SIP phone Number
-  fastify.get('/:trunkPhoneNumber', { preHandler: validateParams(trunkPhoneNumberSchema) }, async (request, reply) => {
+  fastify.get('/:trunkPhoneNumber', { preHandler: validateRequestParams(trunkPhoneNumberSchema) }, async (request, reply) => {
     const { trunkPhoneNumber } = request.params as { trunkPhoneNumber: string };
     const store = await storeService.getStoreByTrunkPhoneNumber(trunkPhoneNumber);
     reply.code(201).send({ success: true, data: store });
@@ -70,7 +70,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // DELETE /api/store/:storeName - Delete store
-  fastify.delete('/:storeName', { preHandler: validateParams(storeNameSchema) }, async (request, reply) => {
+  fastify.delete('/:storeName', { preHandler: validateRequestParams(storeNameSchema) }, async (request, reply) => {
     const { storeName } = request.params as { storeName: string };
     const result = await storeService.deleteStore(storeName);
     reply.code(201).send({ success: true, message: 'Store deleted successfully', data: result });

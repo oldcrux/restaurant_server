@@ -1,21 +1,6 @@
-// export const validateRequest = (schema) => {
-//     return (req, res, next) => {
-//         try {
-//             const validatedData = schema.parse(req.body);
-//             req.body = validatedData;
-//             next();
-//         } catch (error) {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'Validation failed',
-//                 errors: error.errors?.map(err => ({
-//                     path: err.path.join('.'),
-//                     message: err.message
-//                 })) || [{ message: error.message }]
-//             });
-//         }
-//     };
-// };
+import { ZodSchema, ZodError } from 'zod';
+import { FastifyRequest, FastifyReply } from 'fastify';
+
 
 export const errorHandler = async (error: any, request: any, reply: any) => {
   request.log.error(error);
@@ -47,78 +32,83 @@ export const errorHandler = async (error: any, request: any, reply: any) => {
 
 
 // Validate body middleware factory
-export const validateBody = (schema: any) => {
-  return async (request: any, reply: any) => {
+export const validateBody = (schema: ZodSchema<any>) => {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const validatedData = schema.parse(request.body);
-      request.body = validatedData;
-    } catch (error: any) {
-      const details =
-        error.errors?.map((err: { path: any[]; message: any }) => ({
+      const validatedBody = schema.parse(request.body);
+      request.body = validatedBody;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const details = error.errors.map(err => ({
           field: err.path.join('.'),
           message: err.message,
-        })) || [{ message: error.message }];
+        }));
 
-      const primaryMessage =
-        details.length > 0 ? details[0].message : 'Validation error';
+        return reply.code(400).send({
+          success: false,
+          message: 'Invalid request body',
+          errors: details,
+        });
+      }
 
-      return reply.code(400).send({
+      // Handle unexpected errors
+      return reply.code(500).send({
         success: false,
-        message: `Validation failed: ${primaryMessage}`,
-        details,
+        message: 'Internal server error',
       });
     }
   };
 };
 
-
-// Validate params middleware factory
-export const validateParams = (schema: any) => {
-  return async (request: any, reply: any) => {
+// Validate request params middleware factory
+export const validateRequestParams = (schema: ZodSchema<any>) => {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const validatedData = schema.parse(request.params);
-      request.params = validatedData;
+      const validatedParams = schema.parse(request.params);
+      request.params = validatedParams;
     } catch (error) {
-      return reply.code(400).send({
-        success: false,
-        message: 'Invalid parameters',
-        if(error: any){
-          details: error.errors?.map((err: { path: any[]; message: any; }) => ({
+      if (error instanceof ZodError) {
+        return reply.code(400).send({
+          success: false,
+          message: 'Invalid path parameters',
+          errors: error.errors.map(err => ({
             field: err.path.join('.'),
-            message: err.message
-          })) || [{ message: error.message }]
-        }
+            message: err.message,
+          })),
+        });
+      }
+
+      // Fallback for unexpected non-Zod errors
+      return reply.code(500).send({
+        success: false,
+        message: 'Internal server error',
       });
     }
   };
 };
+
 
 // Validate query parameters middleware factory
-export const validateQueryParams = (schema: any) => {
-  return async (request: any, reply: any) => {
+export function validateQueryParams(schema: ZodSchema<any>) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const validatedData = schema.parse(request.query);
-      request.query = validatedData;
-    } catch (error) {
-      return reply.code(400).send({
+      request.query = schema.parse(request.query);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        const messages = err.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+        reply.code(400).send({
+          success: false,
+          message: 'Invalid query parameters',
+          errors: messages,
+        });
+        return;
+      }
+
+      // Fallback for unexpected errors
+      reply.code(500).send({
         success: false,
-        message: 'Invalid query parameters',
-        if(error: any){
-          details: error.errors?.map((err: { path: any[]; message: any; }) => ({
-            field: err.path.join('.'),
-            message: err.message
-          })) || [{ message: error.message }]
-        }
+        message: 'Internal server error',
       });
     }
   };
-};
-
-
-// module.exports = {
-//     validateRequest,
-//     errorHandler,
-//     validateBody,
-//     validateParams,
-//     validateQueryParams
-// };
+}

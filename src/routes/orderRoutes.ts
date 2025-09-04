@@ -1,4 +1,4 @@
-import { validateBody, validateParams } from '../middleware/validation.js';
+import { validateBody, validateRequestParams } from '../middleware/validation.js';
 import { OrderService } from '../services/orderService.js';
 import { createOrderSchema, updateOrderSchema, idSchema, updateStatusSchema, updateOrderToDeliveredSchema, updateOrderDetailStatusSchema } from '../validations/orderValidation.js';
 import { FastifyInstance } from 'fastify';
@@ -34,7 +34,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   });
   
   // GET /api/order/:id
-  fastify.get('/:id', { preHandler: validateParams(idSchema) }, async (request, reply) => {
+  fastify.get('/:id', { preHandler: validateRequestParams(idSchema) }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const order = await orderService.getOrderById(id);
     reply.code(201).send({ success: true, data: order });
@@ -102,7 +102,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   // PUT /api/order/:id
   fastify.put('/:id', {
     preHandler: [
-      validateParams(idSchema),
+      validateRequestParams(idSchema),
       validateBody(updateOrderSchema)
     ]
   }, async (request, reply) => {
@@ -112,7 +112,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   });
 
   // DELETE /api/order/:id
-  fastify.delete('/:id', { preHandler: validateParams(idSchema) }, async (request, reply) => {
+  fastify.delete('/:id', { preHandler: validateRequestParams(idSchema) }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const result = await orderService.deleteOrder(id);
     reply.code(201).send({ success: true, message: 'Order deleted successfully', data: result });

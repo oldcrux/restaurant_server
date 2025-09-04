@@ -1,5 +1,5 @@
 import { SessionRequest } from 'supertokens-node/framework/fastify';
-import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
+import { validateBody, validateRequestParams, validateQueryParams } from '../middleware/validation.js';
 import { UserService } from '../services/userService.js';
 import { updateUserSchema, userIdSchema, updatePasswordSchema, createUserSchema } from '../validations/userValidation.js';
 import { FastifyInstance } from 'fastify';
@@ -30,7 +30,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // GET /api/user/:userId - Get user by userId
-  fastify.get('/:userId', { preHandler: [validateParams(userIdSchema)] }, async (request, reply) => {
+  fastify.get('/:userId', { preHandler: [validateRequestParams(userIdSchema)] }, async (request, reply) => {
     const { userId } = request.params as { userId: string };
     // const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const user = await userService.getUserById(userId);
@@ -38,7 +38,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // GET /api/user/session/:userId - Get user by userId
-  fastify.get('/session/:userId', { preHandler: [validateParams(userIdSchema)] }, async (request, reply) => {
+  fastify.get('/session/:userId', { preHandler: [validateRequestParams(userIdSchema)] }, async (request, reply) => {
     const { userId } = request.params as { userId: string };
     // const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const user = await userService.getUserByIdForSession(userId);
@@ -86,7 +86,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // DELETE /api/user/:userId - Delete user
-  fastify.delete('/:userId', { preHandler: [validateParams(userIdSchema)] }, async (request, reply) => {
+  fastify.delete('/:userId', { preHandler: [validateRequestParams(userIdSchema)] }, async (request, reply) => {
     const { userId } = request.params as { userId: string };
     const { orgName, storeName } = request.query as { orgName: string; storeName: string }; // TODO: will extract from JWT in future
     const result = await userService.deleteUser(userId, orgName, storeName);

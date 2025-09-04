@@ -19,8 +19,8 @@ export const seedPermissions = [
   { permissionId: 'menu_read', permissionName: 'menu_read' },
   { permissionId: 'user_read', permissionName: 'user_read' },
   { permissionId: 'user_write', permissionName: 'user_write' },
-  { permissionId: 'appointment_read', permissionName: 'appointment_read' },
-  { permissionId: 'appointment_write', permissionName: 'appointment_write' },
+  { permissionId: 'booking_read', permissionName: 'booking_read' },
+  { permissionId: 'booking_write', permissionName: 'booking_write' },
 ];
 
 // Roles data
@@ -45,8 +45,8 @@ export const seedRolePermissions = [
   { roleId: 'role_admin', permissionId: 'order_write' },
   { roleId: 'role_admin', permissionId: 'user_read' },
   { roleId: 'role_admin', permissionId: 'user_write' },
-  { roleId: 'role_admin', permissionId: 'appointment_read' },
-  { roleId: 'role_admin', permissionId: 'appointment_write' },
+  { roleId: 'role_admin', permissionId: 'booking_read' },
+  { roleId: 'role_admin', permissionId: 'booking_write' },
   { roleId: 'role_admin', permissionId: 'menu_create' },
   { roleId: 'role_admin', permissionId: 'menu_read' },
 
@@ -54,7 +54,7 @@ export const seedRolePermissions = [
   { roleId: 'role_viewer', permissionId: 'store_read' },
   { roleId: 'role_viewer', permissionId: 'order_read' },
   { roleId: 'role_viewer', permissionId: 'user_read' },
-  { roleId: 'role_viewer', permissionId: 'appointment_read' },
+  { roleId: 'role_viewer', permissionId: 'booking_read' },
 
   // MANAGER has READ and WRITE permissions
   { roleId: 'role_store_manager', permissionId: 'store_read' },
@@ -63,16 +63,16 @@ export const seedRolePermissions = [
   { roleId: 'role_store_manager', permissionId: 'order_write' },
   { roleId: 'role_store_manager', permissionId: 'user_read' },
   { roleId: 'role_store_manager', permissionId: 'user_write' },
-  { roleId: 'role_store_manager', permissionId: 'appointment_read' },
-  { roleId: 'role_store_manager', permissionId: 'appointment_write' },
+  { roleId: 'role_store_manager', permissionId: 'booking_read' },
+  { roleId: 'role_store_manager', permissionId: 'booking_write' },
   { roleId: 'role_store_manager', permissionId: 'menu_read' },
   { roleId: 'role_store_manager', permissionId: 'menu_create' },
 
   // STAFF has READ permission
   { roleId: 'role_staff', permissionId: 'order_read' },
   { roleId: 'role_staff', permissionId: 'order_write' },
-  { roleId: 'role_staff', permissionId: 'appointment_read' },
-  { roleId: 'role_staff', permissionId: 'appointment_write' },
+  { roleId: 'role_staff', permissionId: 'booking_read' },
+  { roleId: 'role_staff', permissionId: 'booking_write' },
 
 ];
 

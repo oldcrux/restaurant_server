@@ -1,7 +1,7 @@
-import { validateBody, validateParams, validateQueryParams } from '../middleware/validation.js';
+import { validateBody, validateQueryParams } from '../middleware/validation.js';
 import { FastifyInstance } from 'fastify';
 import { BookingService } from '../services/bookingService.js';
-import { createBookingSchema } from '../validations/bookingValidation.js';
+import { availabilityCheckSchema, bookingStatusUpdateSchema, createBookingSchema, updateBookingSchema } from '../validations/bookingValidation.js';
 
 export async function bookingRoutes(fastify: FastifyInstance) {
   const bookingService = BookingService(fastify); // Inject Fastify instance
@@ -36,16 +36,38 @@ export async function bookingRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/booking/update - Update booking
-//   fastify.post('/update', { preHandler: validateBody(updatebookingSchema) }, async (request, reply) => {
-//     const body = request.body as any;
-//     const booking = await bookingService.updatebooking(body);
-//     reply.code(201).send({ success: true, message: 'booking updated successfully', data: booking });
-//   });
+  fastify.post('/update', { preHandler: validateBody(updateBookingSchema) }, async (request, reply) => {
+    const body = request.body as any;
+    console.log('updating booking', body);
+    const booking = await bookingService.updateBooking(body);
+    reply.code(201).send({ success: true, message: 'booking updated successfully', data: booking });
+  });
 
-//   // DELETE /api/booking/:bookingName - Cancel Booking
-//   fastify.delete('/:bookingName', { preHandler: validateParams(bookingNameSchema) }, async (request, reply) => {
-//     const { bookingName } = request.params as { bookingName: string };
-//     const result = await bookingService.deletebooking(bookingName);
-//     reply.code(201).send({ success: true, message: 'booking deleted successfully', data: result });
-//   });
+  // POST /api/booking/seat - Seat Booking
+  fastify.post('/seat', { preHandler: validateQueryParams(bookingStatusUpdateSchema) }, async (request, reply) => {
+    const { bookingId, updatedBy } = request.query as { bookingId: string, updatedBy: string };
+    const result = await bookingService.seatBooking(bookingId, updatedBy);
+    reply.code(201).send({ success: true, message: 'booking seated successfully', data: result });
+  });
+
+  // POST /api/booking/complete - Complete Booking
+  fastify.post('/complete', { preHandler: validateQueryParams(bookingStatusUpdateSchema) }, async (request, reply) => {
+    const { bookingId, updatedBy } = request.query as { bookingId: string, updatedBy: string };
+    const result = await bookingService.completeBooking(bookingId, updatedBy);
+    reply.code(201).send({ success: true, message: 'booking completed successfully', data: result });
+  });
+
+  // POST /api/booking/cancel - Cancel Booking
+  fastify.post('/cancel', { preHandler: validateQueryParams(bookingStatusUpdateSchema) }, async (request, reply) => {
+    const { bookingId, updatedBy } = request.query as { bookingId: string, updatedBy: string };
+    const result = await bookingService.cancelBooking(bookingId, updatedBy);
+    reply.code(201).send({ success: true, message: 'booking cancelled successfully', data: result });
+  });
+
+  // GET /api/booking/availability/all - Get all booking availability. Date in format YYYY-MM-DD, Ex- 2025-09-02
+  fastify.get('/availability/all', { preHandler: validateQueryParams(availabilityCheckSchema) }, async (request, reply) => {
+    const { orgName, storeName, date, partySize } = request.query as { orgName: string, storeName: string, date: string, partySize: number };
+    const result = await bookingService.getAllAvailability(orgName, storeName, date, partySize);
+    reply.code(200).send({ success: true, data: result });
+  });
 }

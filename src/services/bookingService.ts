@@ -1,14 +1,37 @@
 import { FastifyInstance } from 'fastify';
-import { eq, InferSelectModel, sql, SQL } from 'drizzle-orm';
+import { DateTime } from "luxon";
+import { ne, eq, InferSelectModel, sql, SQL, and, gte, lt, asc } from 'drizzle-orm';
 import { bookings, slotReservations, slotReservationHistory } from '../db/schema.js';
 import { createId } from '@paralleldrive/cuid2';
 import { StoreService } from './storeService.js';
 
 type Bookings = InferSelectModel<typeof bookings>;
 
+// Map Luxon weekday numbers to your JSON keys
+const WEEKDAY_MAP: Record<number, keyof StoreHours> = {
+    1: "monday",
+    2: "tuesday",
+    3: "wednesday",
+    4: "thursday",
+    5: "friday",
+    6: "saturday",
+    7: "sunday",
+};
+
+// storeHours type, assuming your DB column is JSON
+type StoreHours = {
+    [day in
+    | "monday"
+    | "tuesday"
+    | "wednesday"
+    | "thursday"
+    | "friday"
+    | "saturday"
+    | "sunday"]: [string, string] | null;
+};
+
 /** helper: floor date to slot minutes */
 function floorToSlot(dt: Date, slotMinutes: number) {
-    // const ms = dt.getTime();
     const min = dt.getUTCMinutes();
     const minutes = Math.floor(min / slotMinutes) * slotMinutes;
     const floored = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), dt.getUTCHours(), 0, 0));
@@ -29,9 +52,47 @@ function generateSlots(start: Date, end: Date, slotMinutes: number) {
     return slots;
 }
 
-/** Use pg_advisory_xact_lock to lock on an int64 key derived from the slot; we use a hash function
-         *  We'll call: SELECT pg_advisory_xact_lock(hashtext($key));
-         */
+/** generate day slots in UTC (slotStart as ISO string) for the given store timezone and opening hours */
+export function generateDaySlotsForStore(
+    date: string,                 // 'YYYY-MM-DD'
+    slotMinutes: number,
+    storeTimezone = "UTC",
+    storeHours = {} as StoreHours
+) {
+    const dt = DateTime.fromISO(date, { zone: storeTimezone });
+    const weekdayKey = WEEKDAY_MAP[dt.weekday];
+
+    if(!weekdayKey){
+        return [];
+    }
+    const hours = storeHours[weekdayKey];
+    if (!hours) {
+        // Store closed this day
+        return [];
+    }
+
+    const [openStr, closeStr] = hours; // e.g., ["09:00", "19:00"]
+    const openTime = DateTime.fromISO(`${date}T${openStr}`, { zone: storeTimezone });
+    const closeTime = DateTime.fromISO(`${date}T${closeStr}`, { zone: storeTimezone });
+
+    console.log('openTime', openTime, 'closeTime', closeTime, 'storeHours', storeHours);
+    if (!openTime.isValid || !closeTime.isValid || closeTime <= openTime) {
+        return [];
+    }
+    if (closeTime <= openTime) {
+        throw new Error("closeTime must be after openTime");
+    }
+
+    const slots: string[] = [];
+    let cur = openTime;
+    while (cur < closeTime) {
+        slots.push(cur.toUTC().toISO({ suppressMilliseconds: true }));
+        cur = cur.plus({ minutes: slotMinutes });
+    }
+    return slots;
+}
+
+/** Advisory locks */
 async function runWithSlotLocks(tx: any, keys: string[], fn: () => Promise<any>) {
     const sorted = [...keys].sort();
     for (const k of sorted) {
@@ -46,10 +107,7 @@ export function createSqlArrayLiteral(items: string[], postgresType: string): SQ
     const parts: SQL<unknown>[] = [
         sql.raw(`'{`),
         sql.join(
-            items.map(item =>
-                // Escape quotes for safety
-                sql.raw(JSON.stringify(item))
-            ),
+            items.map(item => sql.raw(JSON.stringify(item))),
             sql.raw(',')
         ),
         sql.raw(`}'::${postgresType}`)
@@ -61,50 +119,63 @@ export const BookingService = (fastify: FastifyInstance) => {
     const db = fastify.db;
     const storeService = StoreService(fastify);
 
+    /** ensure slot_reservations for the day */
+    async function ensureDaySlotsExist(params: {
+        orgName: string;
+        storeName: string;
+        date: string; // YYYY-MM-DD
+        slotMinutes: number;
+        storeTimezone?: string;
+        storeHour?: StoreHours;
+        tx?: any;
+    }) {
+        const {
+            orgName,
+            storeName,
+            date,
+            slotMinutes,
+            storeTimezone = "UTC",
+            storeHour = {},
+            tx = null,
+        } = params;
+
+        const slotStarts = generateDaySlotsForStore(date, slotMinutes, storeTimezone, storeHour as StoreHours);
+        if (slotStarts.length === 0) return;
+
+        const now = new Date().toISOString();
+        const rows = slotStarts.map((slotStartIso) => ({
+            id: createId(),
+            orgName,
+            storeName,
+            slotStart: slotStartIso,
+            slotMinutes,
+            reservedCount: 0,
+            createdAt: now,
+            updatedAt: now,
+        }));
+
+        if (tx) {
+            await tx.insert(slotReservations).values(rows).onConflictDoNothing().execute();
+        } else {
+            await db.insert(slotReservations).values(rows).onConflictDoNothing().execute();
+        }
+    }
+
     return {
 
         async allBookings() {
-            return await db.select().from(bookings).execute();
+            return await db.select().from(bookings).where(ne(bookings.status, 'cancelled')).execute();
         },
-        /**
-         * Create booking:
-         * - compute slots
-         * - in transaction:
-         *    - acquire advisory lock(s) for slots
-         *    - read/create slot_reservations rows FOR UPDATE
-         *    - check capacity limits (stores.dineInCapacity)
-         *    - if ok: insert booking + increment reserved_count per slot + history
-         */
-        // async createBooking({
-        //     orgName,
-        //     storeName,
-        //     customerName,
-        //     customerPhoneNumber,
-        //     guestsCount,
-        //     notes,
-        //     startTime,
-        //     endTime,
-        //     createdBy,
-        // }: {
-        //     orgName: string,
-        //     storeName: string,
-        //     customerName: string,
-        //     customerPhoneNumber: string,
-        //     guestsCount: number,
-        //     notes: string,
-        //     startTime: string, // ISO
-        //     endTime: string, // ISO
-        //     createdBy: string,
-        // }) {
 
         async createBooking(bookingData: Bookings) {
-            
-            const store = await storeService.getStoreByStoreNumber(bookingData.orgName, bookingData.storeName);
+            const store = await storeService.getStoreByStoreName(bookingData.orgName, bookingData.storeName);
             const restaurantCapacity = store.dineInCapacity;
             const slotMinutes = store.slotDurationMinutes;
+            const storeTimezone = store.timezone || "UTC";
+            const storeHour = store.storeHour || {};
 
-            if(!slotMinutes) throw new Error('invalid slot duration defined in store.');
-            if(!restaurantCapacity) throw new Error('invalid restaurant capacity defined in store.');
+            if (!slotMinutes) throw new Error('invalid slot duration');
+            if (!restaurantCapacity) throw new Error('invalid restaurant capacity');
 
             const start = new Date(bookingData.startTime);
             const end = new Date(bookingData.endTime);
@@ -112,15 +183,32 @@ export const BookingService = (fastify: FastifyInstance) => {
             if (slotStarts.length === 0) throw new Error('invalid times');
 
             const now = new Date().toISOString();
-            return await db.transaction(async (tx) => {
-                const client = (tx as any).client || (tx as any).rawClient;
-                // const dbInstance = tx ?? db;
 
-                console.log('creating booking', client);
-                // Acquire slot locks (one lock key per slot)
+            const startLocalDate = DateTime.fromJSDate(start).setZone(storeTimezone).startOf('day');
+            const endLocalDate = DateTime.fromJSDate(end).setZone(storeTimezone).startOf('day');
+
+            const dates: string[] = [];
+            let cur = startLocalDate;
+            while (cur <= endLocalDate) {
+                dates.push(cur.toISODate() as string);
+                cur = cur.plus({ days: 1 });
+            }
+
+            return await db.transaction(async (tx) => {
+                for (const date of dates) {
+                    await ensureDaySlotsExist({
+                        orgName: bookingData.orgName,
+                        storeName: bookingData.storeName,
+                        date,
+                        slotMinutes,
+                        storeTimezone,
+                        storeHour: storeHour as StoreHours,
+                        tx
+                    });
+                }
+
                 const lockKeys = slotStarts.map(s => `${bookingData.orgName}:${bookingData.storeName}:${s.toISOString()}`);
                 await runWithSlotLocks(tx, lockKeys, async () => {
-                    // Select/insert slot_reservations rows for these slotStarts
                     for (const s of slotStarts) {
                         await tx.insert(slotReservations).values({
                             id: createId(),
@@ -134,17 +222,15 @@ export const BookingService = (fastify: FastifyInstance) => {
                         }).onConflictDoNothing().execute();
                     }
 
-                    // Now read the slot reservations with FOR UPDATE semantics - with Drizzle we can issue a FOR UPDATE raw query
-                    // Simpler: use SELECT ... FOR UPDATE via raw SQL
+                    const slotStartIsos = slotStarts.map(s => s.toISOString());
                     const { rows } = await tx.execute(sql
                         `SELECT id, reserved_count, slot_start FROM slot_reservations
-                            WHERE org_name=${bookingData.orgName} 
-                            AND store_name=${bookingData.storeName} 
-                            AND slot_start = ANY(${createSqlArrayLiteral(slotStarts.map(s => s.toISOString()), 'timestamptz[]')})
-                            FOR UPDATE`
-                        );
+                         WHERE org_name=${bookingData.orgName}
+                           AND store_name=${bookingData.storeName}
+                           AND slot_start = ANY(${createSqlArrayLiteral(slotStartIsos, 'timestamptz[]')})
+                         FOR UPDATE`
+                    );
 
-                    // Check capacity for each slot
                     for (const row of rows) {
                         const reserved = Number(row.reserved_count);
                         if (reserved + bookingData.guestsCount > restaurantCapacity) {
@@ -152,7 +238,6 @@ export const BookingService = (fastify: FastifyInstance) => {
                         }
                     }
 
-                    // All good: insert booking
                     const id = createId();
                     await tx.insert(bookings).values({
                         id,
@@ -171,7 +256,6 @@ export const BookingService = (fastify: FastifyInstance) => {
                         updatedAt: now,
                     }).execute();
 
-                    // increment reserved_count for each slot and write history
                     for (const row of rows) {
                         await tx.update(slotReservations).set({
                             reservedCount: sql`${slotReservations.reservedCount} + ${bookingData.guestsCount}`,
@@ -193,72 +277,245 @@ export const BookingService = (fastify: FastifyInstance) => {
             });
         },
 
-        /**
-         * Update booking:
-         * - load existing booking and compute which slots to decrement (old slots) and which to increment (new slots)
-         * - lock union of old+new slots
-         * - apply decrements then increments, ensuring capacity is not exceeded
-         */
-        async updateBooking(bookingId: string, patch: {
-            customerName?: string;
-            customerPhoneNumber?: string;
-            guestsCount?: number;
-            notes?: string;
-            startTime?: string;
-            endTime?: string;
-            updatedBy: string;
-            restaurantCapacity: number;
-            slotMinutes?: number;
-        }) {
-            const slotMinutes = patch.slotMinutes ?? 30;
+        async updateBooking(bookingData: Bookings) {
+            const bookingId = bookingData.id;
+            const store = await storeService.getStoreByStoreName(
+                bookingData.orgName,
+                bookingData.storeName
+            );
+            const restaurantCapacity = store.dineInCapacity;
+            const slotMinutes = store.slotDurationMinutes ?? 30;
+
+            if (!restaurantCapacity) throw new Error("Restaurant capacity not found");
             const now = new Date().toISOString();
 
             return await db.transaction(async (tx) => {
-                // Use Drizzle's FOR UPDATE
                 const existing = await tx
                     .select({
                         id: bookings.id,
                         orgName: bookings.orgName,
                         storeName: bookings.storeName,
-                        customer_name: bookings.customerName,
-                        customer_phone_number: bookings.customerPhoneNumber,
-                        guests_count: bookings.guestsCount,
+                        customerName: bookings.customerName,
+                        customerPhoneNumber: bookings.customerPhoneNumber,
+                        guestsCount: bookings.guestsCount,
                         notes: bookings.notes,
-                        start_time: bookings.startTime,
-                        end_time: bookings.endTime,
+                        startTime: bookings.startTime,
+                        endTime: bookings.endTime,
                     })
                     .from(bookings)
                     .where(eq(bookings.id, bookingId))
-                    .for('update')
-                    .execute(); // or .all() depending on your setup
+                    .for("update")
+                    .execute();
 
-                if (!existing || existing.length === 0) {
-                    throw new Error('booking not found');
-                }
+                const b = existing[0];
+                if (!b) throw new Error("Booking not found");
+
+                const oldSlots = generateSlots(new Date(b.startTime), new Date(b.endTime), slotMinutes);
+                const newStart = bookingData.startTime ? new Date(bookingData.startTime) : new Date(b.startTime);
+                const newEnd = bookingData.endTime ? new Date(bookingData.endTime) : new Date(b.endTime);
+                const newSlots = generateSlots(newStart, newEnd, slotMinutes);
+
+                const unionSlots = Array.from(new Set([
+                    ...oldSlots.map((s) => s.toISOString()),
+                    ...newSlots.map((s) => s.toISOString()),
+                ])).map((s) => new Date(s));
+
+                const lockKeys = unionSlots.map((s) => `${b.orgName}:${b.storeName}:${s.toISOString()}`);
+
+                return await runWithSlotLocks(tx, lockKeys, async () => {
+                    for (const slot of unionSlots) {
+                        await tx.insert(slotReservations).values({
+                            id: createId(),
+                            orgName: b.orgName,
+                            storeName: b.storeName,
+                            slotStart: slot.toISOString(),
+                            slotMinutes,
+                            reservedCount: 0,
+                            createdAt: now,
+                            updatedAt: now,
+                        }).onConflictDoNothing().execute();
+                    }
+
+                    const { rows } = await tx.execute(sql`
+                        SELECT id, slot_start, reserved_count
+                        FROM slot_reservations
+                        WHERE org_name=${b.orgName}
+                          AND store_name=${b.storeName}
+                          AND slot_start = ANY(${createSqlArrayLiteral(unionSlots.map(s => s.toISOString()), 'timestamptz[]')})
+                        FOR UPDATE
+                    `);
+
+                    const map = new Map<string, { id: string; reserved: number }>();
+                    for (const r of rows) {
+                        map.set(new Date(r.slot_start as string).toISOString(), {
+                            id: r.id as string,
+                            reserved: Number(r.reserved_count),
+                        });
+                    }
+
+                    const oldGuests = b.guestsCount;
+                    const newGuests = bookingData.guestsCount ?? b.guestsCount;
+
+                    for (const slot of unionSlots) {
+                        const key = slot.toISOString();
+                        const rec = map.get(key);
+                        if (!rec) throw new Error("Missing slot row");
+
+                        let reserved = rec.reserved;
+                        if (oldSlots.some((s) => s.toISOString() === key)) reserved -= oldGuests;
+                        if (newSlots.some((s) => s.toISOString() === key)) reserved += newGuests;
+                        if (reserved < 0) reserved = 0;
+                        if (reserved > restaurantCapacity) {
+                            throw { code: "CAPACITY_EXCEEDED", slotStart: key, reserved, capacity: restaurantCapacity };
+                        }
+                    }
+
+                    for (const slot of unionSlots) {
+                        const key = slot.toISOString();
+                        const rec = map.get(key)!;
+                        let delta = 0;
+                        if (oldSlots.some((s) => s.toISOString() === key)) delta -= oldGuests;
+                        if (newSlots.some((s) => s.toISOString() === key)) delta += newGuests;
+
+                        if (delta !== 0) {
+                            await tx.update(slotReservations).set({
+                                reservedCount: sql`${slotReservations.reservedCount} + ${delta}`,
+                                updatedAt: sql`CURRENT_TIMESTAMP`,
+                            }).where(eq(slotReservations.id, rec.id)).execute();
+
+                            await tx.insert(slotReservationHistory).values({
+                                id: createId(),
+                                slotReservationId: rec.id,
+                                bookingId,
+                                delta,
+                                note: "update booking",
+                                createdAt: now,
+                            }).execute();
+                        }
+                    }
+
+                    await tx.update(bookings).set({
+                        customerName: bookingData.customerName ?? b.customerName,
+                        customerPhoneNumber: bookingData.customerPhoneNumber ?? b.customerPhoneNumber,
+                        guestsCount: newGuests,
+                        startTime: newStart.toISOString(),
+                        endTime: newEnd.toISOString(),
+                        notes: bookingData.notes ?? b.notes,
+                        updatedBy: bookingData.updatedBy,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    }).where(eq(bookings.id, bookingId)).execute();
+
+                    return { bookingId };
+                });
+            });
+        },
+
+        async getAllAvailability(orgName?: string, storeName?: string, date?: string, partySize?: number) {
+            if (!orgName || !storeName || !date) {
+                throw new Error("orgName, storeName, and date are required");
+            }
+
+            const store = await storeService.getStoreByStoreName(orgName, storeName);
+            const restaurantCapacity = store.dineInCapacity;
+            const slotMinutes = store.slotDurationMinutes || 30;
+            const storeTimezone = store.timezone || "UTC";
+            const storeHour = store.storeHour || { };
+
+            if (!restaurantCapacity) throw new Error("Store capacity not found");
+
+            const partyCount = partySize ?? 0;
+
+            await ensureDaySlotsExist({
+                orgName,
+                storeName,
+                date,
+                slotMinutes,
+                storeTimezone,
+                storeHour: storeHour as StoreHours,
+                tx: null
+            });
+
+            const startLocal = DateTime.fromISO(date, { zone: storeTimezone }).startOf("day");
+            const endLocal = startLocal.endOf("day");
+            const dayStart = startLocal.toUTC().toISO();
+            const dayEnd = endLocal.toUTC().toISO();
+
+            const slots = await db.select().from(slotReservations).where(and(
+                eq(slotReservations.orgName, orgName),
+                eq(slotReservations.storeName, storeName),
+                gte(slotReservations.slotStart, dayStart as any),
+                lt(slotReservations.slotStart, dayEnd as any)
+            )).orderBy(asc(slotReservations.slotStart));
+
+            const formatted = slots.map((slot) => {
+                const availableSeats = restaurantCapacity - slot.reservedCount;
+                return {
+                    start: slot.slotStart,
+                    minutes: slot.slotMinutes,
+                    reservedCount: slot.reservedCount,
+                    availableSeats,
+                    isAvailable: availableSeats >= partyCount,
+                };
+            });
+
+            const filtered = formatted.filter((slot) => slot.isAvailable);
+
+            return {
+                slots: filtered,
+                meta: {
+                    total: formatted.length,
+                    available: filtered.length,
+                    partySize: partyCount,
+                },
+            };
+        },
+
+        async cancelBooking(bookingId: string, cancelledBy: string) {
+            const now = new Date().toISOString();
+
+            return await db.transaction(async (tx) => {
+                // 1. Lock booking row
+                const existing = await tx
+                    .select({
+                        id: bookings.id,
+                        orgName: bookings.orgName,
+                        storeName: bookings.storeName,
+                        guestsCount: bookings.guestsCount,
+                        startTime: bookings.startTime,
+                        endTime: bookings.endTime,
+                    })
+                    .from(bookings)
+                    .where(eq(bookings.id, bookingId))
+                    .for("update")
+                    .execute();
 
                 const b = existing[0];
                 if (!b) {
-                    throw new Error('Booking not found');
+                    throw new Error("booking not found");
                 }
-                const oldSlots = generateSlots(new Date(b.start_time), new Date(b.end_time), slotMinutes);
-                const newStart = patch.startTime ? new Date(patch.startTime) : new Date(b.start_time);
-                const newEnd = patch.endTime ? new Date(patch.endTime) : new Date(b.end_time);
-                const newSlots = generateSlots(newStart, newEnd, slotMinutes);
 
-                const unionSlots = Array.from(
-                    new Set([
-                        ...oldSlots.map((s) => s.toISOString()),
-                        ...newSlots.map((s) => s.toISOString()),
-                    ])
-                ).map((s) => new Date(s));
+                // 2. Load store config (slot duration)
+                const store = await storeService.getStoreByStoreName(
+                    b.orgName,
+                    b.storeName
+                );
+                const slotMinutes = store.slotDurationMinutes ?? 30;
 
-                const lockKeys = unionSlots.map(
+                // 3. Compute slots for this booking
+                const slots = generateSlots(
+                    new Date(b.startTime),
+                    new Date(b.endTime),
+                    slotMinutes
+                );
+
+                const lockKeys = slots.map(
                     (s) => `${b.orgName}:${b.storeName}:${s.toISOString()}`
                 );
 
-                await runWithSlotLocks((tx as any).client, lockKeys, async () => {
-                    // Ensure slotReservations exist
-                    for (const slot of unionSlots) {
+                // 4. Acquire advisory locks just like create/update
+                return await runWithSlotLocks(tx, lockKeys, async () => {
+                    // Ensure slot rows exist (edge case: cancel on slots never reserved)
+                    for (const slot of slots) {
                         await tx
                             .insert(slotReservations)
                             .values({
@@ -275,174 +532,47 @@ export const BookingService = (fastify: FastifyInstance) => {
                             .execute();
                     }
 
-                    // Direct raw SELECT FOR UPDATE for slots
-                    const client = (tx as any).client;
-                    const { rows } = await client.query(
-                        `SELECT id, slot_start, reserved_count FROM slot_reservations
-         WHERE org_name = $1
-           AND store_name = $2
-           AND slot_start = ANY($3::timestamptz[])
-         FOR UPDATE`,
-                        [b.orgName, b.storeName, unionSlots.map((s) => s.toISOString())]
-                    );
+                    // 5. Lock the slot rows
+                    const { rows } = await tx.execute(sql`
+                SELECT id, slot_start, reserved_count
+                FROM slot_reservations
+                WHERE org_name=${b.orgName}
+                  AND store_name=${b.storeName}
+                  AND slot_start = ANY(${createSqlArrayLiteral(slots.map(s => s.toISOString()), 'timestamptz[]')})
+                FOR UPDATE
+            `);
 
-                    const map = new Map<string, { id: string; reserved: number }>();
+                    // 6. Apply decrements with floor at 0
                     for (const r of rows) {
-                        map.set(new Date(r.slot_start).toISOString(), {
-                            id: r.id,
-                            reserved: Number(r.reserved_count),
-                        });
-                    }
+                        const newReserved = Math.max(
+                            0,
+                            Number(r.reserved_count) - b.guestsCount
+                        );
 
-                    const oldGuests = b.guests_count;
-                    const newGuests = patch.guestsCount ?? b.guests_count;
-
-                    // Validate capacity
-                    for (const slot of unionSlots) {
-                        const key = slot.toISOString();
-                        const rec = map.get(key);
-                        if (!rec) throw new Error('missing slot row');
-                        let reserved = rec.reserved;
-                        if (oldSlots.some((s) => s.toISOString() === key)) reserved -= oldGuests;
-                        if (newSlots.some((s) => s.toISOString() === key)) reserved += newGuests;
-                        if (reserved < 0) reserved = 0;
-                        if (reserved > patch.restaurantCapacity) {
-                            throw { code: 'CAPACITY_EXCEEDED', slotStart: key, reserved, capacity: patch.restaurantCapacity };
-                        }
-                    }
-
-                    // Apply updates
-                    for (const slot of unionSlots) {
-                        const key = slot.toISOString();
-                        const rec = map.get(key)!;
-                        let delta = 0;
-                        if (oldSlots.some((s) => s.toISOString() === key)) delta -= oldGuests;
-                        if (newSlots.some((s) => s.toISOString() === key)) delta += newGuests;
-
-                        if (delta !== 0) {
-                            await tx
-                                .update(slotReservations)
-                                .set({
-                                    reservedCount: sql`${slotReservations.reservedCount} + ${delta}`,
-                                    updatedAt: sql`CURRENT_TIMESTAMP`,
-                                })
-                                .where(eq(slotReservations.id, rec.id))
-                                .execute();
-
-                            await tx
-                                .insert(slotReservationHistory)
-                                .values({
-                                    id: createId(),
-                                    slotReservationId: rec.id,
-                                    bookingId,
-                                    delta,
-                                    note: 'update booking',
-                                    createdAt: now,
-                                })
-                                .execute();
-                        }
-                    }
-
-                    // Finally, update booking
-                    await tx
-                        .update(bookings)
-                        .set({
-                            customerName: patch.customerName ?? b.customer_name,
-                            customerPhoneNumber: patch.customerPhoneNumber ?? b.customer_phone_number,
-                            guestsCount: newGuests,
-                            startTime: newStart.toISOString(),
-                            endTime: newEnd.toISOString(),
-                            updatedBy: patch.updatedBy,
-                            updatedAt: sql`CURRENT_TIMESTAMP`,
-                        })
-                        .where(eq(bookings.id, bookingId))
-                        .execute();
-
-                    return { bookingId };
-                });
-            });
-        },
-
-
-        /**
-         * Cancel/Delete booking:
-         * - lock its slots, subtract reserved_count, delete or mark cancelled
-         */
-        async cancelBooking(bookingId: string, cancelledBy: string) {
-            const now = new Date().toISOString();
-
-            return await db.transaction(async (tx) => {
-                // 1. Select booking FOR UPDATE using Drizzle's typed select API
-                const existing = await tx
-                    .select({
-                        id: bookings.id,
-                        orgName: bookings.orgName,
-                        storeName: bookings.storeName,
-                        guestsCount: bookings.guestsCount,
-                        startTime: bookings.startTime,
-                        endTime: bookings.endTime,
-                    })
-                    .from(bookings)
-                    .where(eq(bookings.id, bookingId))
-                    .for('update')
-                    .execute();
-
-                // 2. Guard clause to ensure booking exists
-                const row = existing[0];
-                if (!row) {
-                    throw new Error('booking not found');
-                }
-                const b = row;
-
-                // 3. Compute slot times
-                const slots = generateSlots(
-                    new Date(b.startTime),
-                    new Date(b.endTime),
-                    30
-                );
-
-                // 4. Run slot‑based locking logic
-                const client = (tx as unknown as { client: any }).client ||
-                    (tx as unknown as { rawClient: any }).rawClient;
-                const lockKeys = slots.map(
-                    (s) => `${b.orgName}:${b.storeName}:${s.toISOString()}`
-                );
-
-                await runWithSlotLocks(client, lockKeys, async () => {
-                    const { rows } = await client.query(
-                        `SELECT id, reserved_count, slot_start
-         FROM slot_reservations
-         WHERE org_name = $1 AND store_name = $2 AND slot_start = ANY($3::timestamptz[])
-         FOR UPDATE`,
-                        [b.orgName, b.storeName, slots.map((s) => s.toISOString())]
-                    );
-
-                    // 5. Update each slot's reservation count and history
-                    for (const r of rows) {
                         await tx
                             .update(slotReservations)
                             .set({
-                                reservedCount: sql`${slotReservations.reservedCount} - ${b.guestsCount}`,
+                                reservedCount: newReserved,
                                 updatedAt: sql`CURRENT_TIMESTAMP`,
                             })
-                            .where(eq(slotReservations.id, r.id))
+                            .where(eq(slotReservations.id, r.id as string))
                             .execute();
 
                         await tx.insert(slotReservationHistory).values({
                             id: createId(),
-                            slotReservationId: r.id,
+                            slotReservationId: r.id as string,
                             bookingId,
                             delta: -b.guestsCount,
-                            note: 'cancel booking',
+                            note: "cancel booking",
                             createdAt: now,
                         }).execute();
                     }
 
-                    // 6. Mark booking as cancelled
+                    // 7. Mark booking as cancelled
                     await tx
                         .update(bookings)
                         .set({
-                            status: 'cancelled',
+                            status: "cancelled",
                             updatedBy: cancelledBy,
                             updatedAt: sql`CURRENT_TIMESTAMP`,
                         })
@@ -454,14 +584,16 @@ export const BookingService = (fastify: FastifyInstance) => {
             });
         },
 
+
         /** Seat booking (mark as seated). We do NOT adjust reserved_count when seating: reserved_count tracks reserved chairs.
          * Optionally we can reduce future overlapping slots if seating consumes additional resources — for now seating is a status change.
          */
         async seatBooking(bookingId: string, updatedBy: string) {
+            console.log(`seating booking ${bookingId} by ${updatedBy}`);
             await db.transaction(async (tx) => {
                 await tx.update(bookings).set({
                     status: 'seated',
-                    updatedBy,
+                    updatedBy: updatedBy,
                     updatedAt: sql`CURRENT_TIMESTAMP`
                 }).where(sql`${bookings.id} = ${bookingId}`).execute();
             });
@@ -501,6 +633,5 @@ export const BookingService = (fastify: FastifyInstance) => {
                 throw new Error(`Failed to complete booking: ${error.message}`);
             }
         },
-
     }
 };

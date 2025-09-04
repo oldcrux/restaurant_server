@@ -13,8 +13,8 @@ export const orderDetails = pgTable("order_details", {
 	itemPrice: doublePrecision("item_price").notNull(),
 	quantity: integer().notNull(),
 	notes: text("notes"),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
 }, (table) => [
@@ -46,7 +46,7 @@ export const orderCounters = pgTable("order_counters", {
 	orgName: text("org_name").notNull(),
 	storeName: text("store_name").notNull(),
 	orderNumber: integer("order_number").notNull(),
-	orderDate: timestamp("order_date", { precision: 3, mode: 'string' }).notNull(),
+	orderDate: timestamp("order_date", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const organizations = pgTable("organizations", {
@@ -65,8 +65,8 @@ export const organizations = pgTable("organizations", {
 	country: text().notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("organizations_email_id_key").using("btree", table.emailId.asc().nullsLast().op("text_ops")),
 	uniqueIndex("organizations_org_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops")),
@@ -98,8 +98,8 @@ export const stores = pgTable("stores", {
 	country: text().notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("stores_org_name_store_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops")),
 ]);
@@ -125,8 +125,8 @@ export const users = pgTable("users", {
 	password: text(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 	// orgName: text("org_name").notNull(),
 	// storeName: text("store_name").notNull(),
 }, (table) => [
@@ -144,8 +144,8 @@ export const storeUsers = pgTable('store_users', {
 	isCurrentStore: boolean("is_current_store").default(false).notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const menuItems = pgTable("menu_items", {
@@ -159,8 +159,8 @@ export const menuItems = pgTable("menu_items", {
 	customizable: boolean("customizable").default(false).notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("menu_items_org_name_store_name_item_name_key").using("btree", table.orgName.asc().nullsLast().op("text_ops"), table.storeName.asc().nullsLast().op("text_ops"), table.itemName.asc().nullsLast().op("text_ops")),
 ]);
@@ -170,8 +170,8 @@ export const permissions = pgTable('permissions', {
 	permissionName: text("permission_name").notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const roles = pgTable('roles', {
@@ -179,8 +179,8 @@ export const roles = pgTable('roles', {
 	roleName: text("role_name").notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const rolePermissions = pgTable('role_permissions', {
@@ -188,8 +188,8 @@ export const rolePermissions = pgTable('role_permissions', {
 	permissionId: text("permission_id").notNull(),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const userRoles = pgTable('user_roles', {
@@ -200,8 +200,8 @@ export const userRoles = pgTable('user_roles', {
 	storeName: text("store_name"),
 	createdBy: text("created_by").notNull(),
 	updatedBy: text("updated_by").notNull(),
-	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
 });
 
 export const bookings = pgTable('bookings', {
@@ -226,14 +226,14 @@ export const slotReservations = pgTable('slot_reservations', {
   id: text().primaryKey().notNull(),
   orgName: text('org_name').notNull(),
   storeName: text('store_name').notNull(),
-  slotStart: timestamp('slot_start', { precision: 3, mode: 'string' }).notNull(),
+  slotStart: timestamp('slot_start', { precision: 3, withTimezone: true, mode: 'string' }).notNull(),
   slotMinutes: integer('slot_minutes').default(30).notNull(),
   reservedCount: integer('reserved_count').default(0).notNull(),
-  createdAt: timestamp('created_at', { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: timestamp('updated_at', { precision: 3, mode: 'string' }).notNull()
-}, (table) => ({
-  uniqueSlot: uniqueIndex('slot_unique_idx').on(table.orgName, table.storeName, table.slotStart, table.slotMinutes)
-}));
+  createdAt: timestamp('created_at', { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp('updated_at', { precision: 3, withTimezone: true, mode: 'string' }).notNull()
+}, (table) => [
+  uniqueIndex('slot_unique_idx').on(table.orgName, table.storeName, table.slotStart, table.slotMinutes)
+]);
 
 export const slotReservationHistory = pgTable('slot_reservation_history', {
   id: text().primaryKey().notNull(),
@@ -241,7 +241,7 @@ export const slotReservationHistory = pgTable('slot_reservation_history', {
   bookingId: text('booking_id'),
   delta: integer('delta').notNull(),
   note: text('note'),
-  createdAt: timestamp('created_at', { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull()
+  createdAt: timestamp('created_at', { precision: 3, withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull()
 });
 
 // export const prismaMigrations = pgTable("_prisma_migrations", {

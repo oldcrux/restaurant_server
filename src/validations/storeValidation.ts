@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
-const timeWithAbbreviationRegex = /^([01]\d|2[0-3]):[0-5]\d\s[A-Z]{2,5}$/;
-const timeRangeWithAbbrSchema = z
+const timeOnlyRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const timeRangeSchema = z
   .tuple([
-    z.string().regex(timeWithAbbreviationRegex, 'Time must be in HH:MM TZ format (e.g., 09:00 EST)'),
-    z.string().regex(timeWithAbbreviationRegex, 'Time must be in HH:MM TZ format (e.g., 19:00 EST)'),
+    z.string().regex(timeOnlyRegex, 'Time must be in HH:MM 24-hour format (e.g., 09:00)'),
+    z.string().regex(timeOnlyRegex, 'Time must be in HH:MM 24-hour format (e.g., 19:00)'),
   ])
   .or(z.null());
 
@@ -23,7 +24,7 @@ export const createStoreSchema = z.object({
         'saturday',
         'sunday',
       ]),
-      timeRangeWithAbbrSchema
+      timeRangeSchema
     )
     .optional(),
   phoneNumber: z.string().regex(/^(\+?[1-9][0-9]{7,14})$/, 'Invalid phone number format'),
@@ -38,7 +39,10 @@ export const createStoreSchema = z.object({
   country: z.string().min(1, 'Country is required'),
   isActive: z.boolean().default(false),
   slotDurationMinutes: z.number().min(1, 'Slot duration must be at least 1 minute').optional(),
-  dineInCapacity: z.number().min(1, 'Dine-in capacity must be at least 1').optional(),
+  dineInCapacity: z.coerce.number({
+    required_error: 'dine-in capacity is required',
+    invalid_type_error: 'dine-in capacity must be a number',
+  }).int('dine-in capacity must be an integer').optional(),
   timezone: z.string().min(2, 'Timezone is required'),
   createdBy: z.string().min(2, 'Created by is required'),
   updatedBy: z.string().min(2, 'Updated by is required'),
@@ -49,9 +53,11 @@ export const updateStoreSchema = createStoreSchema.partial();
 export const storeOrgNameSchema = z.object({
   storeName: z.string().min(2, 'Store name is required'),
   orgName: z.string().min(2, 'Organization name is required'),
+  updatedBy: z.string().min(2, 'Updated by is required'),
 });
 
 export const storeNameSchema = z.object({
+  orgName: z.string().min(2, 'Organization name is required'),
   storeName: z.string().min(2, 'Store name is required'),
 });
 

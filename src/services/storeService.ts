@@ -137,7 +137,7 @@ export const StoreService = (fastify: FastifyInstance) => {
         },
 
         // Get store by org + store name
-        async getStoreByStoreNumber(orgName: string, storeName: string): Promise<Store> {
+        async getStoreByStoreName(orgName: string, storeName: string): Promise<Store> {
             try {
                 const [store] = await db
                     .select()
