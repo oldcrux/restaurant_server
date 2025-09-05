@@ -61,34 +61,38 @@ export function generateDaySlotsForStore(
 ) {
     const dt = DateTime.fromISO(date, { zone: storeTimezone });
     const weekdayKey = WEEKDAY_MAP[dt.weekday];
+    if (!weekdayKey) return [];
 
-    if(!weekdayKey){
-        return [];
-    }
     const hours = storeHours[weekdayKey];
-    if (!hours) {
-        // Store closed this day
-        return [];
-    }
+    if (!hours) return []; // closed that day
 
     const [openStr, closeStr] = hours; // e.g., ["09:00", "19:00"]
     const openTime = DateTime.fromISO(`${date}T${openStr}`, { zone: storeTimezone });
     const closeTime = DateTime.fromISO(`${date}T${closeStr}`, { zone: storeTimezone });
 
-    console.log('openTime', openTime, 'closeTime', closeTime, 'storeHours', storeHours);
     if (!openTime.isValid || !closeTime.isValid || closeTime <= openTime) {
         return [];
     }
-    if (closeTime <= openTime) {
-        throw new Error("closeTime must be after openTime");
+
+    // Current time in store timezone
+    const nowLocal = DateTime.now().setZone(storeTimezone);
+
+    // If date is in the past → no slots
+    if (dt.endOf("day") < nowLocal.startOf("day")) {
+        return [];
     }
 
     const slots: string[] = [];
     let cur = openTime;
+
     while (cur < closeTime) {
-        slots.push(cur.toUTC().toISO({ suppressMilliseconds: true }));
+        // only add future slots
+        if (cur > nowLocal) {
+            slots.push(cur.toUTC().toISO({ suppressMilliseconds: true }));
+        }
         cur = cur.plus({ minutes: slotMinutes });
     }
+
     return slots;
 }
 
@@ -419,7 +423,7 @@ export const BookingService = (fastify: FastifyInstance) => {
             const restaurantCapacity = store.dineInCapacity;
             const slotMinutes = store.slotDurationMinutes || 30;
             const storeTimezone = store.timezone || "UTC";
-            const storeHour = store.storeHour || { };
+            const storeHour = store.storeHour || {};
 
             if (!restaurantCapacity) throw new Error("Store capacity not found");
 
@@ -435,15 +439,29 @@ export const BookingService = (fastify: FastifyInstance) => {
                 tx: null
             });
 
+            const nowLocalTime = DateTime.now().setZone(storeTimezone);
+
             const startLocal = DateTime.fromISO(date, { zone: storeTimezone }).startOf("day");
             const endLocal = startLocal.endOf("day");
-            const dayStart = startLocal.toUTC().toISO();
+            // const dayStart = startLocal.toUTC().toISO();
             const dayEnd = endLocal.toUTC().toISO();
+
+            // If requested date < today → return no slots
+            if (endLocal < nowLocalTime.startOf("day")) {
+                return { slots: [], meta: { total: 0, available: 0, partySize: partyCount } };
+            }
+
+            // Base range
+            let startBoundary = startLocal;
+            if (startLocal.hasSame(nowLocalTime, "day")) {
+                // For today, start at "now" (rounded up to next minute)
+                startBoundary = nowLocalTime.plus({ minutes: 1 });
+            }
 
             const slots = await db.select().from(slotReservations).where(and(
                 eq(slotReservations.orgName, orgName),
                 eq(slotReservations.storeName, storeName),
-                gte(slotReservations.slotStart, dayStart as any),
+                gte(slotReservations.slotStart, startBoundary as any),
                 lt(slotReservations.slotStart, dayEnd as any)
             )).orderBy(asc(slotReservations.slotStart));
 
