@@ -348,7 +348,8 @@ export const OrderService = (fastify: FastifyInstance) => {
                                 updatedBy: updated_by,
                                 updatedAt: new Date().toISOString()
                             })
-                            .where(eq(orderDetails.orderId, id));
+                            .where(eq(orderDetails.orderId, id)).returning();
+                    console.log('Updated order detail:', details);
                     }
                     else {
                         details = await tx
@@ -363,6 +364,7 @@ export const OrderService = (fastify: FastifyInstance) => {
                     };
                 });
 
+                console.log('Updated order status:', result);
                 return result;
             } catch (error: any) {
                 throw new Error(`Failed to update order status: ${error.message}`);
