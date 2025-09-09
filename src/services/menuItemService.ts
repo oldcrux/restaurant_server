@@ -1,4 +1,4 @@
-import { eq, and, desc, count, inArray, sql } from 'drizzle-orm';
+import { eq, and, desc, count, inArray, sql, not } from 'drizzle-orm';
 import { menuItems } from '../db/schema.js';
 import { FastifyInstance } from 'fastify';
 import { createId } from '@paralleldrive/cuid2';
@@ -142,6 +142,16 @@ export const MenuItemService = (fastify: FastifyInstance) => {
                     updatedAt: now,
                 }));
 
+                // 1. Delete orphaned records
+                await tx
+                    .delete(menuItems)
+                    .where(and(
+                        eq(menuItems.orgName, updateData.orgName),
+                        eq(menuItems.itemName, updateData.itemName),
+                        not(inArray(menuItems.storeName, updateData.selectedStores))
+                    ));
+
+                // 2. Upsert current records
                 const insertedOrUpdated = await tx
                     .insert(menuItems)
                     .values(newItems)
@@ -157,6 +167,7 @@ export const MenuItemService = (fastify: FastifyInstance) => {
                         },
                     })
                     .returning();
+
                 return insertedOrUpdated;
             });
         },
@@ -183,6 +194,9 @@ export const MenuItemService = (fastify: FastifyInstance) => {
         },
 
         async deleteMenuItem(menuItemName: string, orgName: string, storeName: string) {
+            if (!menuItemName || !orgName) {
+                throw new Error('menuItemName and orgName are required to delete a menu item');
+            }
             try {
                 const whereConditions = [];
 
