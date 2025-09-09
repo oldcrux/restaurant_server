@@ -20,7 +20,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request, reply) => {
+  }, async (_request, reply) => {
     console.log(`fetching all bookings`);
     const result = await bookingService.allBookings();
     reply.code(201).send({ success: true, data: result });

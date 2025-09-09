@@ -92,7 +92,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/order/update/orderDetail/status
-  fastify.post('/update/orderDetail/status', { preHandler: validateBody(updateOrderDetailStatusSchema) }, async (request, reply) => {
+  fastify.post('/update/orderDetail/status', { preHandler: validateBody(updateOrderDetailStatusSchema) }, async (request, _reply) => {
     console.log('Updating order detail status with body:', request.body);
     // const { id, status, updatedBy } = request.body as any;
     // const order = await orderService.updateOrderDetailStatus(id, orderId, status, updatedBy);
