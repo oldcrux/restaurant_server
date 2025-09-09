@@ -1,5 +1,5 @@
 {
-  "name": "fastify-esm-starter",
+  "name": "restaurant-server",
   "version": "1.0.0",
   "description": "Fastify starter project with TypeScript and ESM",
   "type": "module",
